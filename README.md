@@ -68,7 +68,7 @@ docker compose up --build -d
 curl --fail http://127.0.0.1:8000/health/ready
 python scripts/smoke.py
 # stop only this project
- docker compose down
+docker compose down
 ```
 
 Compose publishes only a loopback port, runs as a non-root user, drops capabilities and uses a read-only root filesystem. History persists in a local volume. See [deployment](docs/deployment.md) before production use. No ML weights are included in the image.

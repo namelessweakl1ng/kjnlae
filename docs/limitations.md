@@ -1,0 +1,16 @@
+# Known limitations
+
+- Scanning cannot guarantee an LLM resists prompt injection. ALLOW is absence of configured evidence, not proof of benign intent; a phrase match does not establish successful exploitation.
+- Rule coverage is primarily English. Paraphrases, semantic attacks, nested encoding, multi-stage entity normalization and unfamiliar role protocols can evade detection. One bypass is deliberately retained in regression evaluation.
+- Purpose metadata is a claim that affects screening. A caller can mark hostile content as analysis; independent authorization must still apply. The scanner does not semantically prove task alignment from a task string.
+- Optional model scores are not calibrated attack probabilities. Model choice requires license/access/provenance review. Actual-weight inference was not executed during the initial implementation because compatible reviewed weights were unavailable; mocked/missing-model tests prove failure handling only.
+- Token/encoding budgets fail to review rather than silently truncate. Completeness covers supported inspections, not every possible attack surface or language.
+- Action grants are exact and conservative, not automatically inferred from arbitrary user language. Host code must authenticate principals and map legitimate intent to grants securely. Resource resolution, ownership races and actual effects belong to the host executor.
+- The REST action API never executes tools; an application that ignores decisions remains vulnerable. Passing an untrusted decision across another boundary without integrity protection is unsafe.
+- Approvals/rate limits are in-memory and per-process, not distributed. Restarts revoke approvals; use one worker. There is no production approval UI or identity provider. The SDK's trusted approval method must follow a real authenticated human ceremony in host applications.
+- Static API credentials authenticate a service principal, not arbitrary tenants. No credential management/rotation service is built in. Production needs TLS and upstream controls. IP rate limiting is bounded but is not a distributed abuse defense.
+- Output checks cover configured exact secrets, allowed hosts and expected fields. Arbitrary unknown, fragmented or encoded secrets, phishing text and misinformation may evade them. Safe text rendering does not replace application data-access policy.
+- SQLite history is metadata-only and local. Rule/category/offset/decision metadata can still be sensitive; restrict filesystem access and disable retention as needed. This version intentionally has no full-prompt persistence mode.
+- Six scripted synthetic scenarios do not simulate all agent behavior or measure a real LLM's attack success. Thirty hand-authored regression cases were co-developed with rules and are not an independent held-out accuracy estimate.
+- BIPIA import is detection evaluation of licensed builder exports, not the upstream response evaluator. AgentDojo is a documented integration path requiring suite-specific mappings; no external benchmark run is claimed.
+- Some primary research pages/model cards were blocked by the cloud proxy. The research record identifies what was actually reviewed. No claim of compliance, security certification or independent penetration audit is made.
