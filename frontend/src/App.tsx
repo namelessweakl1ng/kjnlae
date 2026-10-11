@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Evidence } from "./Evidence";
+import { Icon } from "./Icon";
 import type { Scan, Scenario, Report, History, Capabilities } from "./types";
 
 const tabs = [
@@ -109,10 +110,13 @@ export default function App() {
     <div className="shell">
       <aside className="sidebar">
         <a className="brand" href="#main">
-          <span className="brand-icon">k</span>kjnlae
+          <span className="brand-icon">
+            <Icon name="shield" />
+          </span>
+          kjnlae
           <span className="version">0.1</span>
         </a>
-        <p className="sidebar-caption">PROMPT SECURITY GATEWAY</p>
+        <p className="sidebar-caption">SECURITY WORKSPACE</p>
         <nav aria-label="Main navigation">
           {tabs.map((t, i) => (
             <button
@@ -121,7 +125,11 @@ export default function App() {
               aria-current={tab === t ? "page" : undefined}
               onClick={() => choose(t)}
             >
-              <span aria-hidden="true">{["⌕", "◇", "▥", "↺", "⚙"][i]}</span>
+              <Icon
+                name={
+                  (["scan", "lab", "chart", "history", "settings"] as const)[i]
+                }
+              />
               {t}
             </button>
           ))}
@@ -160,7 +168,7 @@ export default function App() {
         </header>
         <section className="page-heading">
           <div>
-            <p className="eyebrow">DEFENSE IN DEPTH</p>
+            <p className="eyebrow">WORKSPACE / {tab.toUpperCase()}</p>
             <h1>{tab}</h1>
             <p>
               {tab === "Scanner"
@@ -176,9 +184,56 @@ export default function App() {
           </div>
           <span className="policy-label">{cap?.policy ?? "input-v1"}</span>
         </section>
+        {tab === "Scanner" && (
+          <div className="overview-grid" aria-label="Inspection overview">
+            <div className="overview-card">
+              <span>Inspection mode</span>
+              <strong>
+                {mode === "deterministic"
+                  ? "Rule engine"
+                  : mode === "ml"
+                    ? "Local classifier"
+                    : "Combined"}
+              </strong>
+              <small>Selected screening pipeline</small>
+              <Icon name="settings" />
+            </div>
+            <div className="overview-card">
+              <span>Matched findings</span>
+              <strong>
+                {scan ? scan.findings.length.toString().padStart(2, "0") : "—"}
+              </strong>
+              <small>
+                {scan ? "Most recent inspection" : "No inspection yet"}
+              </small>
+              <Icon name="scan" />
+            </div>
+            <div className="overview-card">
+              <span>Processing time</span>
+              <strong>{scan ? `${scan.latency_ms.toFixed(2)} ms` : "—"}</strong>
+              <small>Measured by the backend</small>
+              <Icon name="chart" />
+            </div>
+            <div className="overview-card">
+              <span>Inspection coverage</span>
+              <strong>
+                {scan
+                  ? scan.inspection_complete
+                    ? "Complete"
+                    : "Incomplete"
+                  : "—"}
+              </strong>
+              <small>Within supported controls</small>
+              <Icon name="shield" />
+            </div>
+          </div>
+        )}
         <div className="notice">
-          A scanner cannot guarantee that an LLM will resist every injection.
-          Independently authorize every sensitive action.
+          <Icon name="shield" />
+          <span>
+            A scanner cannot guarantee that an LLM will resist every injection.
+            Independently authorize every sensitive action.
+          </span>
         </div>
         {error && (
           <div className="error" role="alert">
@@ -289,11 +344,11 @@ export default function App() {
               </div>
               {!scan ? (
                 <div className="empty">
-                  <span aria-hidden="true">◇</span>
+                  <Icon name="shield" />
                   <h3>Ready to inspect</h3>
                   <p>
-                    Submit content to see matched rules, original evidence, and
-                    a policy decision.
+                    Your decision, highlighted evidence, and recommended action
+                    will appear here after inspection.
                   </p>
                 </div>
               ) : (
