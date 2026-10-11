@@ -1,0 +1,9 @@
+{
+  "principal": "example-service",
+  "owned_resources": ["public"],
+  "destinations": ["bob@example.test"],
+  "actions": [
+    {"tool": "read_document", "resource": "public"},
+    {"tool": "send_email", "resource": "public", "destination": "bob@example.test", "parameters": {"subject": "Summary", "body": "Public schedule"}}
+  ]
+}

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kjnlae"
+version = "0.1.0"
+description = "Prompt injection inspection and independent action authorization gateway"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+dependencies = ["fastapi>=0.115,<1", "pydantic>=2.10,<3", "uvicorn>=0.34,<1"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3,<10", "httpx>=0.28,<1", "ruff>=0.11,<1", "mypy>=1.15,<2", "pip-audit>=2.9,<3"]
+ml = ["torch>=2.6,<3", "transformers>=4.48,<5", "sentencepiece>=0.2,<1"]
+
+[project.scripts]
+kjnlae = "kjnlae.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kjnlae"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["model: optional actual-weight integration test"]
+
+[tool.ruff]
+line-length = 100
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+[tool.mypy]
+python_version = "3.12"
+strict = true
+[[tool.mypy.overrides]]
+module = ["transformers.*", "torch.*"]
+ignore_missing_imports = true
