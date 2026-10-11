@@ -6,6 +6,7 @@ No remote code, no weights in this package. Download explicitly after license re
 import multiprocessing as mp
 import re
 import threading
+import time
 from dataclasses import asdict, dataclass
 from multiprocessing.connection import Connection
 from multiprocessing.process import BaseProcess
@@ -139,53 +140,69 @@ class TransformersClassifier:
     def classify(self, text: str) -> Classification:
         if not text or len(text) > 32768:
             raise ValueError("Classifier input exceeds bounds")
-        with self._lock:
-            try:
-                if not self._process or not self._process.is_alive():
-                    self._stop()
-                    parent, child = mp.get_context("spawn").Pipe()
-                    self._conn = parent
-                    self._process = mp.get_context("spawn").Process(
-                        target=_worker, args=(child, self.config), daemon=True
-                    )
-                    self._process.start()
-                    child.close()
-                    if not parent.poll(self.config.timeout):
-                        raise TimeoutError
-                    loaded = parent.recv()
-                    if not loaded.get("loaded"):
-                        self.status = "unavailable"
-                        self._stop()
-                        return Classification(
-                            **loaded, model_id=self.config.model_id, revision=self.config.revision
-                        )
-                assert self._conn is not None
-                self._conn.send(text)
-                if not self._conn.poll(self.config.timeout):
+        if not self._lock.acquire(blocking=False):
+            return Classification(
+                status="unavailable",
+                detail="Inference worker busy",
+                model_id=self.config.model_id,
+                revision=self.config.revision,
+            )
+        try:
+            return self._classify_locked(text)
+        finally:
+            self._lock.release()
+
+    def _classify_locked(self, text: str) -> Classification:
+        deadline = time.monotonic() + self.config.timeout
+        try:
+            if not self._process or not self._process.is_alive():
+                self._stop()
+                parent, child = mp.get_context("spawn").Pipe()
+                self._conn = parent
+                self._process = mp.get_context("spawn").Process(
+                    target=_worker, args=(child, self.config), daemon=True
+                )
+                self._process.start()
+                child.close()
+                if not parent.poll(max(0, deadline - time.monotonic())):
                     raise TimeoutError
-                result: dict[str, Any] = self._conn.recv()
-                self.status = str(result["status"])
-                return Classification(
-                    **result, model_id=self.config.model_id, revision=self.config.revision
-                )
-            except TimeoutError:
-                self.status = "timeout"
-                self._stop()
-                return Classification(
-                    status="timeout",
-                    model_id=self.config.model_id,
-                    revision=self.config.revision,
-                    detail="Worker deadline exceeded",
-                )
-            except (EOFError, OSError, ValueError):
-                self.status = "error"
-                self._stop()
-                return Classification(
-                    status="error",
-                    detail="Model worker failed",
-                    model_id=self.config.model_id,
-                    revision=self.config.revision,
-                )
+                loaded = parent.recv()
+                if not loaded.get("loaded"):
+                    self.status = "unavailable"
+                    self._stop()
+                    return Classification(
+                        **loaded, model_id=self.config.model_id, revision=self.config.revision
+                    )
+            assert self._conn is not None
+            self._conn.send(text)
+            if not self._conn.poll(max(0, deadline - time.monotonic())):
+                raise TimeoutError
+            result: dict[str, Any] = self._conn.recv()
+            self.status = str(result["status"])
+            return Classification(
+                **result, model_id=self.config.model_id, revision=self.config.revision
+            )
+        except TimeoutError:
+            self.status = "timeout"
+            self._stop()
+            return Classification(
+                status="timeout",
+                model_id=self.config.model_id,
+                revision=self.config.revision,
+                detail="Worker deadline exceeded",
+            )
+        except (EOFError, OSError, ValueError):
+            self.status = "error"
+            self._stop()
+            return Classification(
+                status="error",
+                detail="Model worker failed",
+                model_id=self.config.model_id,
+                revision=self.config.revision,
+            )
+
+    def is_ready(self) -> bool:
+        return self.status == "available" and self._process is not None and self._process.is_alive()
 
     def provenance(self) -> dict[str, Any]:
         return {**asdict(self.config), "status": self.status, "device": "cpu"}

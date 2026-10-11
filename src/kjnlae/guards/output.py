@@ -21,7 +21,7 @@ class OutputGuard:
         self.allowed_fields = allowed_fields
 
     def inspect(self, text: str, structured: dict[str, str] | None = None) -> OutputResult:
-        if len(text) > 32768 or (structured and sum(len(v) for v in structured.values()) > 32768):
+        if len(text) + sum(len(v) for v in (structured or {}).values()) > 32768:
             raise ValueError("Output exceeds inspection limit")
         values = [text, *(structured or {}).values()]
         violations: list[str] = []

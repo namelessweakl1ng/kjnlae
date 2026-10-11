@@ -77,3 +77,29 @@ def test_unavailable_model_is_not_reported_as_detection_accuracy():
     report = benchmark(Guard(Unavailable()))
     assert report["detectors"]["ml"]["status"] == "incomplete"
     assert "precision" not in report["detectors"]["ml"]
+
+
+def test_classifier_readiness_requires_live_worker():
+    classifier = TransformersClassifier(ModelConfig("example/model", "a" * 40, "INJECTION"))
+    classifier.status = "available"
+    assert not classifier.is_ready()
+
+
+def test_busy_worker_does_not_queue_unbounded_calls():
+    import threading
+
+    classifier = TransformersClassifier(ModelConfig("example/model", "a" * 40, "INJECTION"))
+    results = []
+    classifier._lock.acquire()
+    worker = threading.Thread(
+        target=lambda: results.append(classifier.classify("hello")), daemon=True
+    )
+    worker.start()
+    worker.join(0.2)
+    try:
+        assert not worker.is_alive(), "Inference calls must not queue behind a busy worker"
+        assert results[0].status == "unavailable" and "busy" in results[0].detail
+    finally:
+        classifier._lock.release()
+        worker.join(2)
+        classifier.close()

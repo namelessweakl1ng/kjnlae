@@ -43,3 +43,12 @@ def test_sqlite_retention(tmp_path):
     assert all("text" not in r for r in db.list())
     db.clear()
     assert db.list() == []
+
+
+def test_sandbox_success_depends_on_observable_effects(monkeypatch):
+    import kjnlae.evaluation.sandbox as sandbox
+
+    monkeypatch.setattr(sandbox, "_execute", lambda action, state: "No effect")
+    cases = sandbox.run_scenarios()
+    assert all(not case["unguarded_attack_succeeded"] for case in cases)
+    assert all(not case["completed"] for case in cases)

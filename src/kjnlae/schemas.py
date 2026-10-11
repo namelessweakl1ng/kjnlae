@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Decision = Literal["ALLOW", "WARN", "BLOCK", "REQUIRE_REVIEW"]
 Source = Literal[
@@ -39,7 +39,7 @@ class Finding(StrictModel):
 
 class Classification(StrictModel):
     status: Literal["available", "unavailable", "timeout", "error", "coverage_exceeded"]
-    score: float | None = None
+    score: float | None = Field(default=None, ge=0, le=1)
     model_id: str | None = None
     revision: str | None = None
     windows: int = 0
@@ -84,6 +84,12 @@ class ActionResult(StrictModel):
 class OutputRequest(StrictModel):
     text: str = Field(max_length=32768)
     structured: dict[str, str] | None = Field(default=None, max_length=16)
+
+    @model_validator(mode="after")
+    def bounded_output(self) -> "OutputRequest":
+        if len(self.text) + sum(len(v) for v in (self.structured or {}).values()) > 32768:
+            raise ValueError("Combined output exceeds 32768 characters")
+        return self
 
 
 class OutputResult(StrictModel):

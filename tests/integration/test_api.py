@@ -71,3 +71,41 @@ def test_lab_evaluation_and_output(tmp_path):
             c.post("/v1/guard/output", json={"text": "https://evil.test"}).json()["decision"]
             == "BLOCK"
         )
+
+
+def test_output_combined_size_is_validation_error(tmp_path):
+    with client(tmp_path) as c:
+        result = c.post(
+            "/v1/guard/output", json={"text": "x" * 20000, "structured": {"summary": "x" * 20000}}
+        )
+        assert result.status_code == 422
+        assert "x" * 100 not in result.text
+
+
+def test_dashboard_csp_and_development_docs(tmp_path):
+    with client(tmp_path) as c:
+        header = c.get("/health/live").headers["content-security-policy"]
+        assert "script-src 'self';" in header and "unsafe-inline" not in header
+        docs_header = c.get("/docs").headers["content-security-policy"]
+        assert "cdn.jsdelivr.net" in docs_header
+
+
+def test_trusted_host_can_issue_exact_approval_for_api(tmp_path):
+    from kjnlae.guards.actions import ActionGateway, Authority, Grant
+    from kjnlae.schemas import Action
+
+    action = Action(tool="send_email", resource="public", destination="bob@example.test")
+    authority = Authority(
+        "alice", frozenset({"public"}), (Grant(action),), frozenset({"bob@example.test"})
+    )
+    gateway = ActionGateway()
+    app = create_app(
+        Settings(database=str(tmp_path / "approved.db")),
+        action_gateway=gateway,
+        trusted_authority=authority,
+    )
+    with TestClient(app) as c:
+        token = gateway.approve(action, authority)
+        request = {"action": action.model_dump(), "approval_token": token}
+        assert c.post("/v1/guard/action", json=request).json()["decision"] == "ALLOW"
+        assert c.post("/v1/guard/action", json=request).json()["decision"] == "REQUIRE_REVIEW"

@@ -95,3 +95,8 @@ def test_approval_principal_binding():
     token = gateway.approve(action, ctx)
     other = Authority("mallory", ctx.owned_resources, ctx.grants, ctx.destinations)
     assert gateway.authorize(action, other, token).decision == "REQUIRE_REVIEW"
+
+
+def test_sdk_output_total_budget_matches_api():
+    with pytest.raises(ValueError):
+        OutputGuard().inspect("x" * 20000, {"summary": "x" * 20000})

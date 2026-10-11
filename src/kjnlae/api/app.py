@@ -14,12 +14,13 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from kjnlae import Guard, __version__
+from kjnlae.api.audit import configure_audit
 from kjnlae.api.config import Settings
 from kjnlae.api.middleware import LimitsMiddleware
 from kjnlae.classifiers.local import ModelConfig, TransformersClassifier
 from kjnlae.evaluation.benchmark import benchmark
 from kjnlae.evaluation.sandbox import run_scenarios
-from kjnlae.guards.actions import ActionGateway
+from kjnlae.guards.actions import ActionGateway, Authority
 from kjnlae.guards.output import OutputGuard
 from kjnlae.schemas import (
     ActionRequest,
@@ -32,8 +33,14 @@ from kjnlae.schemas import (
 from kjnlae.storage.sqlite import SQLiteHistory
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    action_gateway: ActionGateway | None = None,
+    trusted_authority: Authority | None = None,
+) -> FastAPI:
     cfg = settings or Settings.from_env()
+    audit = configure_audit()
     classifier = (
         TransformersClassifier(
             ModelConfig(
@@ -44,8 +51,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         else None
     )
     guard = Guard(classifier)
-    authority = cfg.authority()
-    actions = ActionGateway()
+    authority = trusted_authority or cfg.authority()
+    actions = action_gateway or ActionGateway()
     outputs = OutputGuard(cfg.output_secrets, cfg.output_hosts)
     history = SQLiteHistory(cfg.database, cfg.retention)
 
@@ -109,7 +116,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return {"status": "live"}
 
     def controls_ready() -> bool:
-        return not cfg.require_ml or (classifier is not None and classifier.status == "available")
+        return not cfg.require_ml or (classifier is not None and classifier.is_ready())
 
     @app.get("/health/ready")
     def ready() -> JSONResponse:
@@ -158,17 +165,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def scan(request: ScanRequest) -> ScanResult:
         result = guard.scan_request(request)
         history.record(result.model_dump())
+        audit.info(
+            "scan_decision",
+            extra={"decision": result.decision, "inspection_complete": result.inspection_complete},
+        )
         return result
 
     @app.post("/v1/guard/action", response_model=ActionResult, dependencies=protected)
     def action(request: ActionRequest) -> ActionResult:
-        return actions.authorize(
-            request.action, authority, request.approval_token, controls_ready=controls_ready()
+        available = controls_ready()
+        result = actions.authorize(
+            request.action, authority, request.approval_token, controls_ready=available
         )
+        audit.info(
+            "action_decision", extra={"decision": result.decision, "degraded": not available}
+        )
+        return result
 
     @app.post("/v1/guard/output", response_model=OutputResult, dependencies=protected)
     def output(request: OutputRequest) -> OutputResult:
-        return outputs.inspect(request.text, request.structured)
+        result = outputs.inspect(request.text, request.structured)
+        audit.info("output_decision", extra={"decision": result.decision})
+        return result
 
     @app.get("/v1/history", dependencies=protected)
     def get_history() -> list[dict[str, Any]]:

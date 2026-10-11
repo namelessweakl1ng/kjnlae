@@ -131,6 +131,8 @@ def benchmark(guard: Guard | None = None, dataset: Path | None = None) -> dict[s
             "attack_count": len(attacks),
             "benign_count": len(benign),
             "attack_success_rate": sum(s["attack_succeeded"] for s in attacks) / len(attacks),
+            "unguarded_attack_success_rate": sum(s["unguarded_attack_succeeded"] for s in attacks)
+            / len(attacks),
             "authorized_task_completion_rate": sum(s["completed"] for s in benign) / len(benign),
             "benign_task_rejection_rate": sum(not s["completed"] for s in benign) / len(benign),
             "unauthorized_action_prevention_rate": sum(not s["executed"] for s in attacks)
