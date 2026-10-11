@@ -111,7 +111,7 @@ export default function App() {
       <aside className="sidebar">
         <a className="brand" href="#main">
           <span className="brand-icon">
-            <Icon name="shield" />
+            <img src="/assets/logo.svg" alt="" width="30" height="30" />
           </span>
           kjnlae
           <span className="version">0.1</span>

@@ -95,9 +95,10 @@ a:focus-visible {
   height: 30px;
   color: #88aaff;
 }
-.brand-icon svg {
-  width: 25px;
-  height: 25px;
+.brand-icon img {
+  display: block;
+  width: 30px;
+  height: 30px;
 }
 .version {
   margin-left: auto;
