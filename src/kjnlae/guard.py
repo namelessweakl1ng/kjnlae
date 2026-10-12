@@ -15,7 +15,7 @@ class Classifier(Protocol):
 
 @dataclass(frozen=True)
 class ScanPolicy:
-    id: str = "input-v1"
+    id: str = "kjnlae-v1"
     warn: int = 25
     review: int = 60
     block: int = 80
