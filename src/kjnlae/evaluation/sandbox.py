@@ -4,6 +4,7 @@ from time import perf_counter, time
 from typing import Any
 
 from kjnlae import Guard
+from kjnlae.context import TrustedSecurityContext
 from kjnlae.guards.actions import ActionGateway
 from kjnlae.guards.executor import GuardedExecutor
 from kjnlae.guards.resources import (
@@ -13,6 +14,7 @@ from kjnlae.guards.resources import (
     ResourceGrant,
     ResourceRecord,
 )
+from kjnlae.schemas_v2 import InspectionRequestV2
 
 SCENARIOS: tuple[dict[str, Any], ...] = (
     {
@@ -52,6 +54,7 @@ SCENARIOS: tuple[dict[str, Any], ...] = (
         "tool": "read_document",
         "resource": "public",
         "malicious": False,
+        "analysis_intent": True,
     },
     {
         "id": "authorized-read",
@@ -95,7 +98,15 @@ def run_scenarios(guard: Guard | None = None) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for case in SCENARIOS:
         start = perf_counter()
-        scan = scanner.scan(case["input"], source=case["source"])
+        scan = scanner.inspect(
+            InspectionRequestV2(text=case["input"], source=case["source"]),
+            TrustedSecurityContext(
+                authority.principal,
+                authority.tenant,
+                case["task"],
+                analysis_intent=case.get("analysis_intent", False),
+            ),
+        )
         proposed = ProposedAction(
             tool=case["tool"],
             tenant="demo",
@@ -112,7 +123,16 @@ def run_scenarios(guard: Guard | None = None) -> list[dict[str, Any]]:
             proposed,
             authority,
             execute,
-            controls_ready=scan.inspection_complete and scan.policy_decision == "ALLOW",
+            controls_ready=scan.inspection_complete
+            and (
+                scan.policy_decision == "ALLOW"
+                or (
+                    scan.policy_decision == "WARN"
+                    and case.get("analysis_intent", False)
+                    and proposed.tool == "read_document"
+                    and proposed.resource == "public"
+                )
+            ),
         )
         results.append(
             {
