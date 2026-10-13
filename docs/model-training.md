@@ -121,4 +121,4 @@ KJNLAE_VERIFY_RELEASE=1 KJNLAE_TEST_MODEL_DIR="$KJNLAE_MODEL_DIR" \
   KJNLAE_TEST_MODEL_HASH="$KJNLAE_MODEL_HASH" bash scripts/verify_all.sh
 ```
 
-The executed cloud candidate's manifest hash is `54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b`. Its local weights are ignored by Git and are **not** in the earlier encrypted Fedora backup. Back up the new artifact and its `fit-report.json`, `evaluation-report.json`, prepared manifest and generated augmentation file separately before losing this workspace.
+The executed cloud candidate's manifest hash is `54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b`. Its local weights are ignored by Git, but the reviewed [v0.2 weights are now publicly downloadable from Hugging Face](https://huggingface.co/namelessweakling/kjnlae-distilbert-v0.2) and the artifact plus noncommitted reproducibility inputs have been backed up separately, restored and verified on Fedora. See [the public model release guide](public-model-release.md) for checksum-pinned installation. The old encrypted backup does not contain these v3 weights.

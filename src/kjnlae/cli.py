@@ -8,6 +8,7 @@ from typing import Any
 
 from kjnlae import Guard
 from kjnlae.classifiers.artifacts import prepare_base_model, verify_artifact
+from kjnlae.classifiers.download import REVIEWED_V3_MANIFEST_SHA256, download_verified_model
 from kjnlae.evaluation.benchmark import benchmark, markdown_report
 from kjnlae.evaluation.model import evaluate_and_promote
 from kjnlae.evaluation.sandbox import run_scenarios
@@ -43,6 +44,13 @@ def _parser() -> argparse.ArgumentParser:
     verify = models.add_parser("verify")
     verify.add_argument("directory", type=Path)
     verify.add_argument("--hash", required=True)
+    download = models.add_parser("download", help="Download and verify public model weights")
+    download.add_argument("--repo", required=True, help="Public Hugging Face username/model ID")
+    download.add_argument("--revision", default="main", help="Hub commit SHA or revision")
+    download.add_argument(
+        "--directory", type=Path, default=Path("var/models/full-v0.2-v3-reviewed")
+    )
+    download.add_argument("--hash", default=REVIEWED_V3_MANIFEST_SHA256)
     base = models.add_parser("prepare-base")
     base.add_argument("directory", type=Path)
     train = commands.add_parser("train", help="Prepare data and run bounded real CPU training")
@@ -89,6 +97,15 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "model":
         if args.model_command == "prepare-base":
             print(prepare_base_model(args.directory))
+        elif args.model_command == "download":
+            artifact = download_verified_model(
+                args.repo, args.directory, revision=args.revision, manifest_sha256=args.hash
+            )
+            print(json.dumps(artifact.__dict__, default=str, indent=2))
+            print(
+                "Set KJNLAE_MODEL_DIR to the installed path "
+                "and KJNLAE_MODEL_HASH to the pinned hash."
+            )
         else:
             print(
                 json.dumps(
