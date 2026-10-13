@@ -2592,3 +2592,545 @@ The archived guide mentions files such as `detection/rules.py` and optional NLP 
 | Treating deprecation warnings as fatal without checking failures | Confuses dependency maintenance with test outcome |
 
 ---
+
+# Part III — Visual representation and complete code paths
+
+## 30. Visual representation of the entire v0.2 project
+
+The archived v0.1 guide ended with diagrams. This v0.2 replacement does too, but every diagram now reflects the **real trained DistilBERT-only detector, public Hub download, and separated host authorization controls**. Diagrams are conceptual: consult source files for precise error branches, field constraints and defaults.
+
+### 30.1 Entire repository subsystem architecture
+
+```mermaid
+flowchart TD
+    User["End user / operator"] --> UI["React frontend: App.tsx"]
+    User --> CLI["CLI: cli.py"]
+    Host["Host AI / RAG application"] --> SDK["Python SDK: Guard"]
+    UI --> HTTP["FastAPI: api/app.py"]
+    CLI --> SDK
+    HTTP --> SDK
+    SDK --> Prep["detection/preprocessing.py"]
+    Prep --> Classifier["classifiers/local.py: spawned CPU worker"]
+    Classifier --> Weights["Local verified safetensors"]
+    Weights --> Policy["policies/decision.py"]
+    Classifier --> Policy
+    Policy --> Result["InspectionResultV2"]
+    Host --> Authority["HostAuthority / ResourceCatalog"]
+    Authority --> Actions["ActionGateway"]
+    Actions --> Executor["GuardedExecutor"]
+    Executor --> Release["OutputGuard"]
+    Result -. "Host uses inspection result" .-> Actions
+    Authority --> Release
+    HTTP --> History["SQLite metadata history"]
+    Train["training/fit.py"] --> Evaluate["evaluation/model.py"]
+    Evaluate --> Artifact["Evaluated model + manifest"]
+    Artifact --> Hub["Public Hugging Face model"]
+    Hub -. "Explicit pinned download" .-> Weights
+```
+
+What this diagram teaches: the **model's production weights are produced by training/evaluation**, but scanning reads only a **verified installed local copy**. The authorization objects have an independent origin—the trusted host—and do not come from `Guard` or from arbitrary retrieved text.
+
+### 30.2 Trust boundary diagram
+
+```mermaid
+flowchart LR
+    subgraph Untrusted["UNTRUSTED"]
+        Page["Web page / document / email"]
+        LLM["LLM-generated proposed action"]
+        Request["Raw HTTP body"]
+    end
+    subgraph Inspection["TEXT INSPECTION"]
+        Guard["Guard"]
+        Model["DistilBERT"]
+        Decision["InputPolicy"]
+    end
+    subgraph Trusted["HOST-OWNED AUTHORITY"]
+        Authn["Real authentication"]
+        Grants["ResourceGrant + allowed tools"]
+        Human["Distinct reviewer approval"]
+        Catalog["ResourceCatalog"]
+    end
+    subgraph Effects["CONTROLLED SIDE EFFECTS"]
+        Gateway["ActionGateway"]
+        Exec["GuardedExecutor"]
+        Output["OutputGuard.release"]
+    end
+    Page --> Guard
+    Request --> Guard
+    Guard --> Model
+    Model --> Decision
+    LLM --> Gateway
+    Authn --> Grants
+    Grants --> Gateway
+    Human --> Gateway
+    Catalog --> Gateway
+    Gateway --> Exec
+    Exec --> Output
+    Decision -. "Host may require good scan before action" .-> Gateway
+```
+
+A dotted line represents a **host composition decision**. It is not permission flowing from the model to the action gateway. Model text cannot add a principal, reviewer or grant.
+
+### 30.3 One text scan: exact sequence
+
+```mermaid
+sequenceDiagram
+    participant U as Client / host
+    participant A as FastAPI or SDK
+    participant G as Guard
+    participant P as Preprocessing
+    participant W as CPU model worker
+    participant I as InputPolicy
+    U->>A: text + source
+    A->>G: inspect(InspectionRequestV2)
+    G->>P: prepare_views(text)
+    P-->>G: views + source mappings + complete flag
+    G->>W: classify_views(views, source)
+    W->>W: verify model and tokenize
+    W->>W: score all token windows
+    W-->>G: LocalInference(score, windows, status)
+    G->>I: decide(inference, complete, source, trusted_context)
+    I-->>G: PolicyOutcome
+    G-->>A: InspectionResultV2 + evidence
+    A-->>U: JSON or SDK object
+```
+
+If the model is missing/corrupt, `Guard` constructs an incomplete inference outcome instead of calling a nonexistent worker. The policy then selects review/block based on profile.
+
+### 30.4 Source-mapped text views
+
+```mermaid
+flowchart TD
+  Raw["Original submitted string"] --> Orig["View: original"]
+  Raw --> Norm["View: Unicode NFKC"]
+  Raw --> Html["View: selected HTML entities"]
+  Raw --> B64["View: printable Base64 candidates"]
+  Orig --> Map["Each character mapped to original span"]
+  Norm --> Map
+  Html --> Map
+  B64 --> Map
+  Map --> Windows["Tokenizer offsets + sliding windows"]
+  Windows --> Scores["Per-window injection scores"]
+  Scores --> Evidence["Raw input offsets for highlighted windows"]
+```
+
+This is why evidence can highlight an encoded or entity-escaped region without displaying raw HTML as markup. The transformation is not a classifier by itself.
+
+### 30.5 Model scoring and coverage bounds
+
+```mermaid
+flowchart TD
+  Start["Prepared input views"] --> Tokenize["Tokenizer and source prefix"]
+  Tokenize --> Windows["Construct overlapping 128-token inputs"]
+  Windows --> Budget{"All windows <= max_windows?"}
+  Budget -- "No" --> Partial["ERROR / coverage incomplete"]
+  Budget -- "Yes" --> Batch["Pad and batch CPU tensors"]
+  Batch --> Forward["DistilBERT forward pass"]
+  Forward --> Softmax["Class-1 softmax score per window"]
+  Softmax --> Max["Take maximum score"]
+  Max --> Policy["Apply verified threshold + host context"]
+  Partial --> Incomplete["INCOMPLETE: not cleared"]
+```
+
+The relevant budget fields are `token_limit=128`, `overlap=32`, `max_windows=128` and `batch_size=8` by default. They protect bounded operation, not infallible language understanding.
+
+### 30.6 Model artifact loading and fail-incomplete decision
+
+```mermaid
+flowchart TD
+  Config["KJNLAE_MODEL_DIR and KJNLAE_MODEL_HASH"] --> Present{"Both present?"}
+  Present -- "No" --> Missing["MISSING / INCOMPLETE"]
+  Present -- "Yes" --> Manifest["Hash-check manifest.json"]
+  Manifest --> Valid{"All required files, labels, revision, hashes valid?"}
+  Valid -- "No" --> Corrupt["CORRUPTED / INCOMPLETE"]
+  Valid -- "Yes" --> Worker["Start local CPU worker"]
+  Worker --> Ready{"Loaded and responded within deadline?"}
+  Ready -- "No" --> Timeout["TIMED_OUT or ERROR / INCOMPLETE"]
+  Ready -- "Yes" --> Complete["Score complete supported input"]
+  Complete --> Decide["Input policy interprets evidence"]
+```
+
+There is no edge from `Missing` to the old regex engine, because v0.2 deliberately removed that runtime fallback.
+
+### 30.7 InputPolicy decision tree
+
+```mermaid
+flowchart TD
+    A["LocalInference + preprocessing flags + threshold"] --> B{"AVAILABLE and complete?"}
+    B -- "No" --> C{"Sensitive context?"}
+    C -- "Yes" --> D["BLOCK / INCOMPLETE"]
+    C -- "No" --> E["REQUIRE_REVIEW / INCOMPLETE"]
+    B -- "Yes" --> F{"Score exists and below threshold?"}
+    F -- "Yes" --> G["ALLOW / NO_EVIDENCE_FOUND"]
+    F -- "No score" --> H["INCOMPLETE / review or block"]
+    F -- "At or above" --> I{"Trusted analysis intent?"}
+    I -- "Yes" --> J["WARN / MALICIOUS_INDICATORS"]
+    I -- "No" --> K{"Source is user and nonsensitive?"}
+    K -- "Yes" --> L["REQUIRE_REVIEW / MALICIOUS_INDICATORS"]
+    K -- "No" --> M["BLOCK / MALICIOUS_INDICATORS"]
+```
+
+Nuance: the source graph is an explanation, not a formal executable specification. The actual check ordering and handling of missing score are in `policies/decision.py`.
+
+### 30.8 Authorization flow for a model-proposed operation
+
+```mermaid
+flowchart TD
+  Propose["ProposedAction from LLM / host"] --> Principal{"Verified principal and same tenant?"}
+  Principal -- "No" --> Deny["BLOCK"]
+  Principal -- "Yes" --> Tool{"Non-admin tool explicitly allowed?"}
+  Tool -- "No" --> Deny
+  Tool -- "Yes" --> Resource{"Current resource and exact grant?"}
+  Resource -- "No" --> Deny
+  Resource -- "Yes" --> Params{"Destination and parameters allowed?"}
+  Params -- "No" --> Deny
+  Params -- "Yes" --> Controls{"Required controls ready?"}
+  Controls -- "No" --> Reject["BLOCK or WARN, not execute"]
+  Controls -- "Yes" --> Read{"Read-only operation?"}
+  Read -- "Yes" --> Allow["ALLOW"]
+  Read -- "No" --> Approval{"Exact valid one-use human approval?"}
+  Approval -- "No" --> Review["REQUIRE_REVIEW"]
+  Approval -- "Yes" --> Consume["Consume approval token"]
+  Consume --> Allow
+```
+
+The host constructs verified principal, tenant, catalog, allowed tools and grant tuples. The proposal can state a target but cannot prove it may access it.
+
+### 30.9 Distinct reviewer and exact approval token sequence
+
+```mermaid
+sequenceDiagram
+    participant L as LLM / agent
+    participant H as Trusted host
+    participant A as ActionGateway
+    participant R as Distinct human reviewer
+    participant E as GuardedExecutor
+    L->>H: ProposedAction(send_email, resource, destination, parameters)
+    H->>A: authorize_v2(action, host_authority, catalog)
+    A-->>H: REQUIRE_REVIEW
+    H->>R: Display exact proposed side effect
+    R-->>H: Authenticated approval decision
+    H->>A: approve_v2(action, authority, catalog, reviewer=R)
+    A-->>H: Opaque one-use approval token
+    H->>E: execute(action, authority, callback, approval_token)
+    E->>A: authorize_v2(..., token)
+    A->>A: Verify digest/identity/version/expiry; consume
+    A-->>E: ALLOW with resource identity
+    E->>E: Recheck resource; run host callback
+    E-->>H: EXECUTED / DENIED / UNKNOWN
+```
+
+A user prompting an LLM "assume a manager approved this" does not add the separate reviewer steps. Only the trusted host may conduct them.
+
+### 30.10 Resource version (time-of-check/time-of-use) race
+
+```mermaid
+sequenceDiagram
+    participant H as Trusted host
+    participant G as ActionGateway
+    participant C as ResourceCatalog
+    participant E as GuardedExecutor
+    H->>G: authorize_v2(action, grant for version 1)
+    G->>C: resolve(resource)
+    C-->>G: version 1
+    G-->>H: ALLOW for version 1
+    Note over C: Resource updates to version 2
+    H->>E: execute(action, host callback)
+    E->>G: authorize_v2 or re-evaluate grants
+    E->>C: resolve resource and compare version
+    C-->>E: version 2
+    E-->>H: DENIED; no guarded callback execution
+```
+
+This is a conceptual race illustration. Actual v2 execution performs its own authorization and checks, and production stores need transactional/version-safe equivalents.
+
+### 30.11 RAG permission-before-generation sequence
+
+```mermaid
+sequenceDiagram
+    participant U as Authenticated host user
+    participant R as RagGateway
+    participant C as ResourceCatalog / grants
+    participant G as Guard
+    participant H as Host LLM / renderer
+    U->>R: retrieve(query, TrustedSecurityContext, grants)
+    R->>C: For matching document, check tenant/resource/current read grant
+    alt No grant / wrong tenant
+       C-->>R: Denied
+       R->>R: Do not return the chunk
+    else Granted
+       C-->>R: Eligible
+       R->>G: scan(chunk.text, source=retrieved_document)
+       alt Scan not ALLOW
+          G-->>R: Block/review/incomplete
+          R->>R: Withhold chunk
+       else Input ALLOW
+          G-->>R: Complete allowed inspection
+          R->>H: Host may use permitted chunk
+       end
+    end
+```
+
+The RAG example does not embed a real foundation-model API. The purpose is to demonstrate where permissions and inspection belong.
+
+### 30.12 Output inspection and release flow
+
+```mermaid
+flowchart TD
+    Draft["Generated text or structured output"] --> Inspect["OutputGuard.inspect"]
+    Inspect --> Safe{"Known-secret, URL, field checks pass?"}
+    Safe -- "No" --> Block["BLOCK output"]
+    Safe -- "Yes" --> Host{"Trusted host invoked release?"}
+    Host -- "No / public HTTP inspect only" --> Info["Inspection result; release_authorized=false"]
+    Host -- "Yes" --> Recip{"Recipient allowed?"}
+    Recip -- "No" --> Block
+    Recip -- "Yes" --> Grants{"Resource read/export grants current?"}
+    Grants -- "No" --> Block
+    Grants -- "Yes" --> Allow["ALLOW host-owned release"]
+```
+
+Remember: a known-secret match is not a universal DLP detector. Upstream resource access should already have been restricted.
+
+### 30.13 FastAPI object construction and protected routes
+
+```mermaid
+flowchart TD
+  Settings["Settings.from_env"] --> App["create_app()"]
+  App --> Audit["audit logging"]
+  App --> Guard["Guard + verified weights"]
+  App --> Authority["HostAuthority + ResourceCatalog"]
+  App --> Actions["ActionGateway"]
+  App --> Output["OutputGuard"]
+  App --> SQLite["SQLiteHistory"]
+  App --> Middleware["TrustedHost, Limits, CORS"]
+  App --> Routes["/v2 scan, guard, rag, history, capabilities"]
+  App --> Health["/health/live and /health/ready"]
+  App --> Frontend["Compiled frontend/dist if present"]
+  Routes --> Guard
+  Routes --> Authority
+  Routes --> Actions
+  Routes --> Output
+  Routes --> SQLite
+  Health --> Guard
+  Health --> SQLite
+```
+
+An API bearer token controls access to protected routes if configured. It does not make request bodies authoritative; host authority is still resolved from deployment code.
+
+### 30.14 Frontend state and each screen
+
+```mermaid
+flowchart TD
+  Entry["main.tsx"] --> App["App.tsx"]
+  App --> State["page, credential, content, scan, capabilities, cases, report, history, busy, error"]
+  App --> Scanner["Scanner"]
+  App --> Lab["Attack lab"]
+  App --> Eval["Evaluation"]
+  App --> Hist["History"]
+  App --> System["System"]
+  Scanner --> ScanAPI["POST /v2/scan"]
+  ScanAPI --> Evidence["Evidence.tsx: Unicode-safe highlighting"]
+  Lab --> LabAPI["GET /v2/lab"]
+  Eval --> EvalAPI["GET /v2/evaluation"]
+  Hist --> HistAPI["GET/DELETE /v2/history"]
+  System --> SysAPI["GET /v2/system/capabilities"]
+  App --> Fetch["request<T> adds optional Bearer token"]
+```
+
+The frontend does not store raw prompt text in the SQLite database. It displays the text in React state only for the active scan; a full application could have other upstream logs that must be audited separately.
+
+### 30.15 Data preparation, training and evaluation
+
+```mermaid
+flowchart TD
+  Sources["Pinned fictional, BIPIA, Deepset inputs"] --> Prepare["TrainingExample + prepare_dataset"]
+  Prepare --> Train["TRAIN 924"]
+  Prepare --> Val["VALIDATION 12"]
+  Prepare --> Cal["CALIBRATION 12"]
+  Prepare --> Held["HELD_OUT_TEST 116"]
+  Train --> Aug["TRAIN-only source-balanced benign variants"]
+  Aug --> Fit["CPU fit: AdamW, weighted CE, seed 42"]
+  Val --> Fit
+  Fit --> Initial["Initial control checkpoint"]
+  Fit --> Best["Selected best epoch 1 / 462 steps"]
+  Best --> ScoreCal["Score calibration"]
+  Cal --> ScoreCal
+  ScoreCal --> Threshold["Threshold 0.025134501978754997"]
+  Best --> Eval["Held-out evaluation"]
+  Held --> Eval
+  Eval --> Manifest["Evaluated EXPERIMENTAL manifest + SHA256"]
+  Threshold --> Manifest
+  Manifest --> Hub["Public Hugging Face safetensors"]
+```
+
+The graph separates four data partitions for a reason. Validation checks training progress; calibration determines a threshold; held-out test measures a fixed candidate; the initial control confirms the model actually changed.
+
+### 30.16 Model publication, acquisition and offline inference
+
+```mermaid
+sequenceDiagram
+  participant Owner as Maintainer Fedora machine
+  participant Pub as scripts/publish_model.py
+  participant Hub as Public Hugging Face model repo
+  participant User as New developer
+  participant DL as classifiers/download.py
+  participant Local as Verified local directory
+  Owner->>Pub: Local reviewed artifact + manifest
+  Pub->>Pub: verify hashes and list files
+  Pub->>Owner: Ask for explicit PUBLISH confirmation
+  Owner->>Pub: Confirm public release
+  Pub->>Hub: Upload only model files and model card
+  User->>DL: kjnlae model download --repo ...
+  DL->>Hub: Fetch manifest anonymously
+  DL->>DL: Verify pinned manifest digest
+  DL->>Hub: Fetch only listed files
+  DL->>DL: Verify every file and label/base revision
+  DL->>Local: Install from staging into new directory
+  User->>Local: Set KJNLAE_MODEL_DIR + HASH
+  Note over User,Local: Subsequent scans are local/offline
+```
+
+`Hugging Face` stores only the approved model release. Intermediate training archives/backups remain separate and are not an inference requirement.
+
+### 30.17 Benchmark and local lab data flow
+
+```mermaid
+flowchart LR
+    Fixture["Labeled original regression fixtures"] --> Benchmark["evaluation/benchmark.py"]
+    Benchmark --> Scans["Guard scans every row"]
+    Scans --> Complete{"All complete?"}
+    Complete -- "No" --> Incomplete["INCOMPLETE report; no detector accuracy estimate"]
+    Complete -- "Yes" --> Metrics["Confusion matrix / F1 / FPR / category metrics"]
+    Sandbox["Six scripted actions"] --> Runner["evaluation/sandbox.py"]
+    Runner --> Effects["Synthetic callback effects"]
+    Effects --> Defense["Completion / prevention rates"]
+    Metrics --> Report["JSON + Markdown report"]
+    Defense --> Report
+    Incomplete --> Report
+```
+
+Two outcomes are deliberately kept distinct: **text-classifier performance** and **synthetic action-boundary performance**.
+
+### 30.18 The six synthetic scenario outcomes
+
+```mermaid
+flowchart TD
+  S["Six scripted local scenarios"] --> Mal["Four malicious"]
+  S --> Ben["Two benign"]
+  Mal --> W["Webpage asks for secret resource"]
+  Mal --> T["Tool response asks for admin"]
+  Mal --> E["Email asks for attacker destination"]
+  Mal --> B["Detector bypass asks for admin"]
+  Ben --> Q["Educational quotation"]
+  Ben --> R["Authorized read"]
+  W --> Deny["Authorization boundary denies effect"]
+  T --> Deny
+  E --> Deny
+  B --> Deny
+  Q --> Success["Allowed host-controlled public read"]
+  R --> Success
+```
+
+This reflects the **recorded v3-review scripted results**, not an expected result for every new model or text distribution. The project has **not** established attack prevention against a live autonomous LLM.
+
+### 30.19 CI and local release validation
+
+```mermaid
+flowchart TD
+  Commit["GitHub commit or PR"] --> CI["GitHub Actions quality"]
+  CI --> Py12["Backend Python 3.12"]
+  CI --> Py13["Backend Python 3.13"]
+  CI --> UI["Frontend Vitest + build"]
+  CI --> Container["Docker Compose smoke"]
+  Py12 --> Incomplete["No-model benchmark must say INCOMPLETE"]
+  Py13 --> Incomplete
+  Local["Maintainer Fedora environment"] --> Artifact["Verified real model weights"]
+  Artifact --> Release["KJNLAE_VERIFY_RELEASE=1"]
+  Release --> LiveTests["Real-weight tests, doctor, benchmark, frontend"]
+  CI --> Review["Document code checks"]
+  LiveTests --> Review
+```
+
+A successful build is not equivalent to proof of model effectiveness. A successful real-weight smoke is not equivalent to a real-world penetration test. Both kinds of evidence belong in a responsible release description.
+
+### 30.20 "Where did this value come from?" — provenance map
+
+```mermaid
+flowchart TD
+  Text["Request body text"] --> Guard["Guard.inspect"]
+  Source["Request source enum"] --> Guard
+  Manifest["Pinned artifact manifest"] --> Threshold["Threshold + artifact identity"]
+  Threshold --> Guard
+  Auth["Host-authenticated user/session"] --> Principal["Trusted principal and tenant"]
+  Catalog["Host-owned current catalog"] --> Grants["Exact resource grants"]
+  Principal --> Grants
+  Grants --> Action["ActionGateway + GuardedExecutor"]
+  Proposal["Untrusted agent proposal"] --> Action
+  Guard -. "Input status used by host" .-> Action
+  Action --> Out["OutputGuard.release"]
+  Grants --> Out
+```
+
+This provenance map is arguably the most important visual: it shows why a string inside an untrusted document cannot mint authority. The principal/grant source is **the host**, not a prompt.
+
+### 30.21 Complete host-owned read-and-summarize example
+
+```mermaid
+sequenceDiagram
+  participant Client as Client with bearer token
+  participant Chat as Synthetic host /chat
+  participant Auth as Host identity map
+  participant Catalog as Trusted resource catalog
+  participant Scan as DistilBERT Guard
+  participant Exec as GuardedExecutor
+  participant Output as OutputGuard
+  Client->>Chat: message + resource + bearer credential
+  Chat->>Auth: Resolve verified principal / tenant
+  Auth-->>Chat: HostAuthority
+  Chat->>Catalog: Check resource/tenant and exact grant
+  alt No permission
+    Chat-->>Client: DENIED without reading sensitive document
+  else Granted
+    Chat->>Scan: scan permitted retrieved text
+    alt Scan not ALLOW
+      Scan-->>Chat: BLOCK, REVIEW or INCOMPLETE
+      Chat-->>Client: DENIED
+    else Scan ALLOW
+      Scan-->>Chat: Complete allowed scan
+      Chat->>Exec: authorize versioned read; synthetic excerpt callback
+      Exec-->>Chat: EXECUTED / DENIED / UNKNOWN
+      Chat->>Output: release permitted excerpt to host-authorized destination
+      alt Output denied
+        Chat-->>Client: No answer
+      else Output allowed
+        Chat-->>Client: Allowed excerpt
+      end
+    end
+  end
+```
+
+The reference chatbot returns a synthetic excerpt; it does not use a paid LLM, medical database or genuine employee directory. Nevertheless, its ordering illustrates permission-before-read, inspection-before-use and release-before-return.
+
+### 30.22 Source navigation diagram
+
+```mermaid
+flowchart LR
+  Main["README / CODEBASE.md"] --> API["api/app.py"]
+  Main --> Guard["guard.py"]
+  Guard --> Prep["detection/preprocessing.py"]
+  Guard --> Local["classifiers/local.py"]
+  Guard --> Decision["policies/decision.py"]
+  Local --> Artifact["classifiers/artifacts.py"]
+  Main --> Actions["guards/resources.py + actions.py"]
+  Actions --> Executor["guards/executor.py"]
+  Executor --> Output["guards/output.py"]
+  Main --> Training["training/dataset.py + fit.py"]
+  Training --> Eval["evaluation/model.py"]
+  Eval --> Hub["docs/public-model-release.md"]
+  API --> React["frontend/src/App.tsx"]
+  React --> Evidence["frontend/src/Evidence.tsx"]
+```
+
+Use it as a first map if you're unsure which source file to open for a particular feature. Read the actual modules rather than treating documentation as an executable specification.
+
+---
