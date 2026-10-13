@@ -61,6 +61,9 @@ def _parser() -> argparse.ArgumentParser:
     fit_cmd.add_argument("--validation", type=Path, required=True)
     fit_cmd.add_argument("--output", type=Path, required=True)
     fit_cmd.add_argument("--epochs", type=int, default=2)
+    fit_cmd.add_argument(
+        "--deadline", type=int, default=300, help="CPU wall deadline in seconds (max 600)"
+    )
     evaluate = trains.add_parser("evaluate")
     evaluate.add_argument("--fit", type=Path, required=True)
     evaluate.add_argument("--prepared", type=Path, required=True)
@@ -101,7 +104,14 @@ def main(argv: list[str] | None = None) -> None:
             result = run_probe(ProbeConfig(args.base, args.train, args.output))
         elif args.train_command == "fit":
             result = fit(
-                FitConfig(args.base, args.train, args.validation, args.output, epochs=args.epochs)
+                FitConfig(
+                    args.base,
+                    args.train,
+                    args.validation,
+                    args.output,
+                    epochs=args.epochs,
+                    deadline_s=args.deadline,
+                )
             )
         else:
             result = evaluate_and_promote(args.fit, args.prepared)

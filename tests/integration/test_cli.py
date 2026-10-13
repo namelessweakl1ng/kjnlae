@@ -3,6 +3,28 @@ import os
 import subprocess
 import sys
 
+from kjnlae.cli import _parser
+
+
+def test_cli_training_deadline_is_explicitly_configurable():
+    args = _parser().parse_args(
+        [
+            "train",
+            "fit",
+            "--base",
+            "base",
+            "--train",
+            "train.jsonl",
+            "--validation",
+            "validation.jsonl",
+            "--output",
+            "out",
+            "--deadline",
+            "600",
+        ]
+    )
+    assert args.deadline == 600
+
 
 def test_cli_explicit_incomplete_and_retired_mode(tmp_path):
     base = [sys.executable, "-m", "kjnlae.cli"]
