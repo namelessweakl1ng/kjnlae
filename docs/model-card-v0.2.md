@@ -64,7 +64,7 @@ The separately controlled gateway completed 2/2 authorized tasks and blocked 4/4
 Clone and install [kjnlae](https://github.com/namelessweakl1ng/kjnlae) with the CPU-only dependencies described in its README, and install `huggingface_hub>=0.30,<1`. Then, from the project root:
 
 ```bash
-kjnlae model download --repo YOUR_HF_USERNAME/kjnlae-distilbert-v0.2
+kjnlae model download --repo namelessweakling/kjnlae-distilbert-v0.2
 export KJNLAE_MODEL_DIR="$PWD/var/models/full-v0.2-v3-reviewed"
 export KJNLAE_MODEL_HASH="54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b"
 kjnlae model verify "$KJNLAE_MODEL_DIR" --hash "$KJNLAE_MODEL_HASH"
@@ -76,6 +76,6 @@ The downloader installs the files only after comparing the manifest and each fil
 
 ## License and attribution
 
-**Proposed release license for the fine-tuned weights: Apache-2.0** (the base encoder is Apache-2.0). The kjnlae application code is separately MIT licensed. Distribution of these weights does not override any obligations from the Microsoft BIPIA or Deepset training sources. Refer to their licenses, notices, and the linked provenance report; the Deepset metadata conflict warrants extra review before downstream redistribution or commercial use.
+**Published model weights declare Apache-2.0**, consistent with the base encoder. The kjnlae application code is separately MIT licensed. Distribution of these weights does not override any obligations from the Microsoft BIPIA or Deepset training sources. Refer to their licenses, notices, and the linked provenance report; the Deepset metadata conflict warrants extra review before downstream redistribution or commercial use.
 
-**Maintainer: confirm the Apache-2.0 model licensing and attribution before uploading publicly.**
+**Published model:** [namelessweakling/kjnlae-distilbert-v0.2](https://huggingface.co/namelessweakling/kjnlae-distilbert-v0.2). A separate Fedora public-download smoke test verified the entire published artifact against the original manifest SHA-256; this does not establish production suitability.
