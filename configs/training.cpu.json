@@ -1,0 +1,19 @@
+{
+  "base_model": "distilbert/distilbert-base-uncased",
+  "base_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+  "seed": 42,
+  "device": "cpu",
+  "precision": "fp32",
+  "epochs": 4,
+  "max_tokens": 128,
+  "batch_size": 2,
+  "learning_rate": 0.00002,
+  "optimizer": "AdamW",
+  "scheduler": "linear_decay_with_10_percent_warmup",
+  "validation_metric": "F1_at_0.5",
+  "early_stop_patience": 2,
+  "deadline_seconds": 300,
+  "max_worker_rss_gib": 12,
+  "max_cgroup_gib": 28,
+  "min_free_disk_gib": 8
+}

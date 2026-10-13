@@ -1,15 +1,17 @@
-"""FastAPI transport. Authority is loaded once from trusted host configuration."""
+"""Versioned HTTP transport. Only deployment configuration supplies authority."""
 
+import asyncio
 import hmac
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal, cast
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import Field, model_validator
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -17,20 +19,41 @@ from kjnlae import Guard, __version__
 from kjnlae.api.audit import configure_audit
 from kjnlae.api.config import Settings
 from kjnlae.api.middleware import LimitsMiddleware
-from kjnlae.classifiers.local import ModelConfig, TransformersClassifier
+from kjnlae.context import TrustedSecurityContext
 from kjnlae.evaluation.benchmark import benchmark
 from kjnlae.evaluation.sandbox import run_scenarios
 from kjnlae.guards.actions import ActionGateway, Authority
 from kjnlae.guards.output import OutputGuard
-from kjnlae.schemas import (
-    ActionRequest,
-    ActionResult,
-    OutputRequest,
-    OutputResult,
-    ScanRequest,
-    ScanResult,
-)
+from kjnlae.guards.resources import HostAuthority, ProposedAction, ResourceCatalog
+from kjnlae.schemas import ActionRequest, ActionResult, OutputRequest, OutputResult
+from kjnlae.schemas_v2 import ContentEnvelope, InspectionRequestV2, InspectionResultV2, StrictV2
 from kjnlae.storage.sqlite import SQLiteHistory
+
+
+class ActionRequestV2(StrictV2):
+    action: ProposedAction
+
+
+class OutputRequestV2(StrictV2):
+    text: str = Field(max_length=32768)
+    structured: dict[str, str] | None = None
+
+    @model_validator(mode="after")
+    def bounded_output(self) -> "OutputRequestV2":
+        if len(self.text) + sum(len(value) for value in (self.structured or {}).values()) > 32768:
+            raise ValueError("Combined output exceeds supported limit")
+        return self
+
+
+class OutputInspectionResponseV2(StrictV2):
+    inspection_decision: Literal["ALLOW", "BLOCK"]
+    violations: list[str]
+    release_authorized: Literal[False] = False
+    policy_id: str = "output-inspection-v2"
+
+
+class RagInspectRequestV2(StrictV2):
+    chunks: list[ContentEnvelope] = Field(min_length=1, max_length=16)
 
 
 def create_app(
@@ -38,34 +61,28 @@ def create_app(
     *,
     action_gateway: ActionGateway | None = None,
     trusted_authority: Authority | None = None,
+    trusted_authority_v2: HostAuthority | None = None,
+    resource_catalog: ResourceCatalog | None = None,
+    guard_override: Guard | None = None,
 ) -> FastAPI:
     cfg = settings or Settings.from_env()
     audit = configure_audit()
-    classifier = (
-        TransformersClassifier(
-            ModelConfig(
-                model_id=cfg.model_id, revision=cfg.model_revision, positive_label=cfg.model_label
-            )
-        )
-        if cfg.model_id
-        else None
-    )
-    guard = Guard(classifier)
+    guard = guard_override or Guard(model_dir=cfg.model_dir, model_hash=cfg.model_hash)
     authority = trusted_authority or cfg.authority()
+    configured_authority, configured_catalog = cfg.authority_v2()
+    host_authority = trusted_authority_v2 or configured_authority
+    catalog = resource_catalog or configured_catalog
     actions = action_gateway or ActionGateway()
     outputs = OutputGuard(cfg.output_secrets, cfg.output_hosts)
     history = SQLiteHistory(cfg.database, cfg.retention)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        if cfg.require_ml and classifier:
-            # Loading is mandatory for deployments that require this control.
-            import asyncio
-
-            await asyncio.to_thread(classifier.classify, "Readiness probe")
+        if guard.classifier is not None:
+            await asyncio.to_thread(guard.scan, "Service readiness probe.")
         yield
-        if classifier:
-            classifier.close()
+        if guard_override is None:
+            guard.close()
 
     app = FastAPI(
         title="kjnlae",
@@ -98,7 +115,6 @@ def create_app(
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
-        # Pydantic errors ordinarily include full offending input; strip it.
         return JSONResponse(
             {
                 "error": "validation_error",
@@ -116,12 +132,12 @@ def create_app(
         return {"status": "live"}
 
     def controls_ready() -> bool:
-        return not cfg.require_ml or (classifier is not None and classifier.is_ready())
+        return guard.capabilities()["model_status"] == "AVAILABLE"
 
     @app.get("/health/ready")
     def ready() -> JSONResponse:
         try:
-            history.list(1)
+            history.list(1, tenant=host_authority.tenant)
             db_ok = True
         except Exception:
             db_ok = False
@@ -130,86 +146,102 @@ def create_app(
             {
                 "status": "ready" if healthy else "not_ready",
                 "database": db_ok,
-                "required_ml": cfg.require_ml,
-                "ml": classifier.status if classifier else "disabled",
+                "model": guard.capabilities()["model_status"],
             },
             status_code=200 if healthy else 503,
         )
 
-    @app.get("/v1/system/capabilities", dependencies=protected)
+    @app.get("/v2/system/capabilities", dependencies=protected)
     def capabilities() -> dict[str, Any]:
         return {
             "version": __version__,
-            "deterministic": True,
-            "model": classifier.provenance() if classifier else {"status": "disabled"},
-            "policy": guard.policy.id,
-            "action_policy": "action-v1",
-            "output_policy": "output-v1",
+            **guard.capabilities(),
+            "action_policy": "action-v2",
+            "output_policy": "output-v2",
             "production": cfg.production,
-            "laboratory": not cfg.production,
-            "max_characters": 32768,
-            "history_retention": cfg.retention,
-            "authorized_principal": authority.principal,
-            "granted_actions": len(authority.grants),
             "limitations": [
-                "Scanner cannot guarantee injection resistance",
-                "Authorization endpoint never executes tools",
+                "Scanner cannot guarantee LLM resistance",
+                "Action endpoint authorizes but never executes tools",
                 "Known-secret output checks are not universal DLP",
-                "Analysis metadata cannot grant authority",
-                "Approvals are process-local and one-use",
             ],
         }
 
-    @app.post("/v1/scan", response_model=ScanResult, dependencies=protected)
-    @app.post("/v1/guard/input", response_model=ScanResult, dependencies=protected)
-    def scan(request: ScanRequest) -> ScanResult:
-        result = guard.scan_request(request)
-        history.record(result.model_dump())
+    @app.post("/v2/scan", response_model=InspectionResultV2, dependencies=protected)
+    @app.post("/v2/guard/input", response_model=InspectionResultV2, dependencies=protected)
+    def scan(request: InspectionRequestV2) -> InspectionResultV2:
+        result = guard.inspect(request)
+        history.record(result.model_dump(), tenant=host_authority.tenant)
         audit.info(
             "scan_decision",
-            extra={"decision": result.decision, "inspection_complete": result.inspection_complete},
+            extra={
+                "decision": result.policy_decision,
+                "inspection_complete": result.inspection_complete,
+            },
         )
         return result
 
-    @app.post("/v1/guard/action", response_model=ActionResult, dependencies=protected)
-    def action(request: ActionRequest) -> ActionResult:
-        available = controls_ready()
-        result = actions.authorize(
-            request.action, authority, request.approval_token, controls_ready=available
+    @app.post("/v2/guard/action", dependencies=protected)
+    def action_v2(request: ActionRequestV2) -> dict[str, Any]:
+        result = actions.authorize_v2(
+            request.action,
+            host_authority,
+            catalog,
+            controls_ready=controls_ready(),
         )
-        audit.info(
-            "action_decision", extra={"decision": result.decision, "degraded": not available}
-        )
-        return result
+        audit.info("action_decision", extra={"decision": result.decision})
+        return result.model_dump()
 
-    @app.post("/v1/guard/output", response_model=OutputResult, dependencies=protected)
-    def output(request: OutputRequest) -> OutputResult:
+    @app.post("/v2/guard/output", response_model=OutputInspectionResponseV2, dependencies=protected)
+    def output_v2(request: OutputRequestV2) -> OutputInspectionResponseV2:
         result = outputs.inspect(request.text, request.structured)
-        audit.info("output_decision", extra={"decision": result.decision})
-        return result
+        audit.info("output_inspection", extra={"decision": result.decision})
+        return OutputInspectionResponseV2(
+            inspection_decision=cast(Literal["ALLOW", "BLOCK"], result.decision),
+            violations=result.violations,
+        )
 
-    @app.get("/v1/history", dependencies=protected)
+    @app.post("/v2/rag/inspect", dependencies=protected)
+    def inspect_rag(request: RagInspectRequestV2) -> list[InspectionResultV2]:
+        context = TrustedSecurityContext(
+            host_authority.principal, host_authority.tenant, host_authority.task
+        )
+        return guard.inspect_chunks(request.chunks, context)
+
+    @app.get("/v2/history", dependencies=protected)
     def get_history() -> list[dict[str, Any]]:
-        return history.list()
+        return history.list(tenant=host_authority.tenant)
 
-    @app.delete("/v1/history", dependencies=protected)
+    @app.delete("/v2/history", dependencies=protected)
     def delete_history() -> dict[str, bool]:
-        history.clear()
+        history.clear(tenant=host_authority.tenant)
         return {"cleared": True}
 
     if not cfg.production:
 
-        @app.get("/v1/lab", dependencies=protected)
+        @app.get("/v2/lab", dependencies=protected)
         def lab() -> list[dict[str, Any]]:
             return run_scenarios(guard)
 
-        @app.get("/v1/evaluation", dependencies=protected)
+        @app.get("/v2/evaluation", dependencies=protected)
         def evaluation() -> dict[str, Any]:
-            # HTTP lab evaluates cheap fixtures only. CLI explicitly opts into ML.
-            return benchmark()
+            return benchmark(guard)
+
+    @app.post("/v1/scan", dependencies=protected)
+    @app.post("/v1/guard/input", dependencies=protected)
+    def retired_scan() -> JSONResponse:
+        return JSONResponse({"error": "retired_endpoint", "migration": "/v2/scan"}, status_code=410)
+
+    @app.post("/v1/guard/action", response_model=ActionResult, dependencies=protected)
+    def action(request: ActionRequest) -> ActionResult:
+        if request.approval_token is not None:
+            raise HTTPException(422, "Approval tokens belong to trusted host execution")
+        return actions.authorize(request.action, authority, controls_ready=controls_ready())
+
+    @app.post("/v1/guard/output", response_model=OutputResult, dependencies=protected)
+    def output(request: OutputRequest) -> OutputResult:
+        return outputs.inspect(request.text, request.structured)
 
     dist = Path(__file__).resolve().parents[3] / "frontend" / "dist"
-    # Docker may provide a separate fixed frontend root.
     if not dist.exists():
         dist = Path("/app/frontend/dist")
     if dist.is_dir():

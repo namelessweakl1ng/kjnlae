@@ -10,16 +10,19 @@ services:
       KJNLAE_ALLOWED_HOSTS: ${KJNLAE_ALLOWED_HOSTS:-localhost,127.0.0.1}
       KJNLAE_RETENTION: ${KJNLAE_RETENTION:-500}
       KJNLAE_RATE_LIMIT: ${KJNLAE_RATE_LIMIT:-60}
+      KJNLAE_MODEL_DIR: /app/model
+      KJNLAE_MODEL_HASH: ${KJNLAE_MODEL_HASH:-}
     volumes:
       - audit:/app/var
+      - ${KJNLAE_MODEL_DIR_HOST:-./var/models/full-v0.2-v3-reviewed}:/app/model:ro
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     init: true
-    cpus: 2
-    mem_limit: 1g
+    cpus: 4
+    mem_limit: 4g
     pids_limit: 128
 volumes:
   audit:

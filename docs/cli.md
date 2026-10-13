@@ -1,0 +1,7 @@
+# CLI reference
+
+`kjnlae scan --text TEXT --source SOURCE` performs one model-only scan; without `--text` it reads bounded UTF-8 stdin. It emits structured JSON, exits 0 for a complete result, 1 for `INCOMPLETE`, and 2 for invalid usage. `--mode` is retired and errors. `kjnlae scan-batch --input cases.jsonl` accepts bounded rows with only `text` and optional `source`; it exits 1 if any row is incomplete.
+
+`kjnlae doctor` and `kjnlae self-test` perform actual model inference and show artifact status/hash. `kjnlae model verify DIRECTORY --hash SHA256` validates a local promoted artifact; `kjnlae model prepare-base DIRECTORY` explicitly downloads the pinned base model. `kjnlae train prepare|probe|fit|evaluate` implements the reproducible pipeline described in [model training](model-training.md). `kjnlae benchmark --output PREFIX` writes JSON and Markdown, and exits 1 if detection was incomplete. `kjnlae demo --scenario baseline|rag|hospital|enterprise` runs synthetic local cases. `kjnlae serve --host 127.0.0.1 --port 8000` runs FastAPI and a built frontend if present.
+
+Heavy base downloads and training only occur when those explicit commands are invoked. Model inference never downloads weights. Run `kjnlae --help` and each subcommand's `--help` for exact flags. Do not pass real secrets on a shell command line, where process listings or shell history might retain them; use bounded stdin or an authorized local integration.

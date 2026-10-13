@@ -11,7 +11,7 @@ Trusted components are host authentication, policy configuration, the reviewer c
 | Boundary | Enforcement |
 |---|---|
 | External content → model context | Preserve origin; inspection decision; never promote source into system authority |
-| Proposed action → tool | Exact trusted intent, principal, ownership, allowed tool/parameters, recipients |
+| Proposed action → tool | Exact trusted intent, principal, tenant, resource grant/version, allowed tool/parameters, recipients |
 | High-risk operation → execution | Exact principal/action-bound expiring one-use approval |
 | Generated output → user/downstream | Known-secret matching, allowed hosts, expected structured fields, safe rendering |
 | API client → policy | Server-owned deployment configuration; strict schemas reject forged authority |
@@ -28,4 +28,4 @@ Compromised host/credentials, arbitrary tool adapters, arbitrary filesystem path
 
 ## Failure boundaries
 
-Oversized text is rejected. Encoded/window budget exhaustion is incomplete and requires review. Required unavailable ML makes readiness fail and denies sensitive actions. Independently authorized read-only operations can proceed with explicit degraded `WARN`. Storage failure fails the HTTP scan instead of silently claiming a persisted decision. Production fails at configuration time without credentials and does not register lab routes.
+Oversized text is rejected. Encoded/window budget exhaustion is incomplete and requires review. An unavailable local trained model makes readiness fail and denies sensitive actions. Non-sensitive read authorization can return a degraded `WARN`, but the provided executor will not execute it. Storage failure fails the HTTP scan instead of silently claiming a persisted decision. Production fails at configuration time without credentials or model pinning and does not register lab routes.

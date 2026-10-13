@@ -8,58 +8,10 @@ Decision = Literal["ALLOW", "WARN", "BLOCK", "REQUIRE_REVIEW"]
 Source = Literal[
     "user", "retrieved_document", "webpage", "email", "attachment", "tool_response", "agent"
 ]
-Mode = Literal["deterministic", "ml", "combined"]
 
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
-
-
-class ScanRequest(StrictModel):
-    text: str = Field(min_length=1, max_length=32768)
-    source: Source = "user"
-    purpose: Literal["instruction", "reference", "analysis", "code"] = "reference"
-    task: str = Field(default="", max_length=2048)
-    requested_action: str = Field(default="", max_length=256)
-    sensitive_access: bool = False
-    destination: str | None = Field(default=None, max_length=512)
-    mode: Mode = "deterministic"
-
-
-class Finding(StrictModel):
-    rule_id: str
-    category: str
-    explanation: str
-    severity: int = Field(ge=0, le=100)
-    start: int
-    end: int
-    evidence: str
-    view: str = "original"
-
-
-class Classification(StrictModel):
-    status: Literal["available", "unavailable", "timeout", "error", "coverage_exceeded"]
-    score: float | None = Field(default=None, ge=0, le=1)
-    model_id: str | None = None
-    revision: str | None = None
-    windows: int = 0
-    detail: str = ""
-
-
-class ScanResult(StrictModel):
-    decision: Decision
-    risk_level: Literal["low", "medium", "high", "critical"]
-    risk_score: int
-    detection_mode: Mode
-    findings: list[Finding]
-    classification: Classification | None = None
-    explanation: str
-    mitigation: str
-    policy_id: str
-    latency_ms: float
-    inspection_complete: bool
-    source: Source
-    source_trust: Literal["untrusted", "user-supplied"]
 
 
 class Action(StrictModel):

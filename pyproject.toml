@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "kjnlae"
-version = "0.1.0"
+version = "0.2.0"
 description = "Prompt injection inspection and independent action authorization gateway"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -13,7 +13,7 @@ dependencies = ["fastapi>=0.115,<1", "pydantic>=2.10,<3", "uvicorn>=0.34,<1"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.3,<10", "httpx>=0.28,<1", "ruff>=0.11,<1", "mypy>=1.15,<2", "pip-audit>=2.9,<3"]
-ml = ["torch>=2.6,<3", "transformers>=4.48,<5", "sentencepiece>=0.2,<1"]
+ml = ["torch>=2.6,<3", "transformers>=4.51,<5", "safetensors>=0.6,<1"]
 
 [project.scripts]
 kjnlae = "kjnlae.cli:main"
@@ -33,5 +33,5 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.12"
 strict = true
 [[tool.mypy.overrides]]
-module = ["transformers.*", "torch.*"]
+module = ["transformers.*", "torch.*", "huggingface_hub", "huggingface_hub.*", "pyarrow", "pyarrow.*"]
 ignore_missing_imports = true
