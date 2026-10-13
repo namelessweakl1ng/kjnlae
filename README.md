@@ -101,6 +101,12 @@ kjnlae demo --scenario enterprise
 python examples/rag.py benefits
 python examples/hospital.py own_patient
 python examples/enterprise.py other_employee
+# Separate synthetic HTTP chatbot host (requires the configured local model):
+export KJNLAE_CHAT_API_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(32))')"
+KJNLAE_CHAT_KIND=hospital uvicorn examples.chatbot_http:app --host 127.0.0.1 --port 8001
+# In another shell: POST /chat with Authorization: Bearer $KJNLAE_CHAT_API_KEY,
+# JSON {"message":"Summarize assigned patient","resource":"patient-1024"}.
+# Set KJNLAE_CHAT_KIND=enterprise and use resource "policy-1024" for that host.
 kjnlae benchmark --output reports/benchmark
 bash scripts/verify_all.sh
 KJNLAE_VERIFY_RELEASE=1 KJNLAE_TEST_MODEL_DIR="$KJNLAE_MODEL_DIR" \

@@ -3,11 +3,21 @@
 import base64
 import html
 import re
+from html.parser import HTMLParser
 from urllib.parse import urlsplit
 
 from kjnlae.detection.preprocessing import prepare_views
 from kjnlae.guards.resources import HostAuthority, ResourceCatalog
 from kjnlae.schemas import OutputResult
+
+
+class _VisibleText(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+
+    def handle_data(self, data: str) -> None:
+        self.parts.append(data)
 
 
 class OutputGuard:
@@ -31,15 +41,23 @@ class OutputGuard:
         for value in values:
             if not value:
                 continue
-            prepared = prepare_views(value)
-            if not prepared.complete:
-                violations.append("Output inspection budget exceeded")
-            if any(
-                secret in view.text or base64.b64encode(secret.encode()).decode() in value
-                for view in prepared.views
-                for secret in self.secrets
-            ):
-                violations.append("Known sensitive value would be disclosed")
+            # Tags and comments disappear in rendered text, potentially joining
+            # fragments of a known secret. HTMLParser never executes content.
+            visible = _VisibleText()
+            visible.feed(value)
+            rendered = "".join(visible.parts)
+            for candidate in (value, rendered):
+                if not candidate:
+                    continue
+                prepared = prepare_views(candidate)
+                if not prepared.complete:
+                    violations.append("Output inspection budget exceeded")
+                if any(
+                    secret in view.text or base64.b64encode(secret.encode()).decode() in candidate
+                    for view in prepared.views
+                    for secret in self.secrets
+                ):
+                    violations.append("Known sensitive value would be disclosed")
         for value in values:
             decoded = html.unescape(value)
             links = re.findall(r'(?:https?://|javascript:|data:|//)[^\s<>"\x27)]+', decoded, re.I)

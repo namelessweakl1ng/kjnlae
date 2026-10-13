@@ -6,8 +6,8 @@ The server binds to `127.0.0.1:8000` by default. Development OpenAPI is at `/doc
 |---|---|
 | `POST /v2/scan`, `POST /v2/guard/input` | Model-only content inspection and input-policy decision |
 | `POST /v2/rag/inspect` | Bounded list of lower-trust chunks inspected individually; retrieval ACL belongs to host |
-| `POST /v2/guard/action` | Authorize proposed action; never executes the tool |
-| `POST /v2/guard/output` | Inspect known secret, destination, schema and resource release |
+| `POST /v2/guard/action` | Preview authorization; never executes a tool or consumes approval |
+| `POST /v2/guard/output` | Inspect known secrets, destinations and schema; does not authorize release |
 | `GET /v2/system/capabilities` | Model status/hash, policy IDs and limitations |
 | `GET`, `DELETE /v2/history` | Tenant-scoped metadata history |
 | `GET /v2/lab`, `GET /v2/evaluation` | Development-only scripted sandbox and measured fixture report |
@@ -27,13 +27,15 @@ The request accepts `text` (1–32768 characters), `source` (`user`, `retrieved_
 {"action":{"tool":"read_document","tenant":"local","resource":"handbook"}}
 ```
 
-Send that JSON to `/v2/guard/action`. The action also supports an optional `destination` and bounded `parameters`; an optional approval token must have been issued by authenticated **host code** for the exact sensitive action, principal, tenant and resource version. The public API has no approval-issuance or tool-execution endpoint. It starts with zero grants unless a server-owned authority is configured. Responses include `decision`, a safe `reason`, `action_digest`, `policy_id` and `executed:false`. A `REQUIRE_REVIEW` response does not itself grant approval. The host must execute through `GuardedExecutor` or an equivalent transactionally checked boundary.
+Send that JSON to `/v2/guard/action`. The action also supports an optional `destination` and bounded `parameters`. This route rejects approval tokens: consuming a one-use approval without executing the tool would invalidate it. Authenticated host code issues an exact approval and passes it directly to `GuardedExecutor.execute`, which consumes it at execution. The public API has no approval-issuance or tool-execution endpoint. It starts with zero grants unless a server-owned authority is configured. Responses include `decision`, a safe `reason`, `action_digest`, `policy_id` and `executed:false`. A `REQUIRE_REVIEW` response does not itself grant approval.
 
 ```json
-{"text":"Authorized summary","structured":{"summary":"Authorized summary"},"recipient":null,"resources":["handbook"]}
+{"text":"Authorized summary","structured":{"summary":"Authorized summary"}}
 ```
 
-Send output JSON to `/v2/guard/output`; the configured authority must have current read grants for every resource and an exact export grant for a recipient. Known-secret and output-link checks apply independently. The output interface returns `decision`, safe violation reasons and policy ID. It cannot detect arbitrary unknown secrets.
+Send output JSON to `/v2/guard/output`. It returns `inspection_decision`, safe violation reasons, `policy_id` and `release_authorized:false`. Request bodies cannot declare resource provenance or a recipient. The host must call `OutputGuard.release` with **server-owned** resource IDs and recipient to enforce current grants before sending any output. Known-secret and output-link inspection cannot detect arbitrary unknown secrets.
+
+The synthetic host chatbot factory `kjnlae.api.chatbot.create_chatbot_app` demonstrates the full path: bearer credential maps to a host-owned principal, ACL precedes retrieval, the model scans retrieved text, `GuardedExecutor` checks the read action, and `OutputGuard.release` checks the output. See `examples/chatbot_http.py`; it offers `/chat` for one fictional hospital or enterprise resource and returns a guarded document excerpt. It never calls a live tool or LLM and does not generate a clinical or HR recommendation. `message` is bounded input, not an authority source.
 
 `/v2/rag/inspect` accepts `{"chunks":[{"text":"...","source":"retrieved_document","origin_id":"host-id"}]}` and returns one scan per chunk. This does not replace host-side tenant and resource ACLs before retrieval. The `RagGateway` SDK performs those checks first.
 

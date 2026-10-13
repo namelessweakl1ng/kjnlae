@@ -1,15 +1,18 @@
 import os
+import time
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from kjnlae.api.app import create_app
+from kjnlae.api.chatbot import create_chatbot_app
 from kjnlae.api.config import Settings
 from kjnlae.classifiers.local import LocalClassifier, LocalModelConfig
 from kjnlae.detection.preprocessing import prepare_views
 from kjnlae.evaluation.model import _score_rows
 from kjnlae.guard import Guard
+from kjnlae.guards.resources import HostAuthority, ResourceCatalog, ResourceGrant, ResourceRecord
 from kjnlae.integrations.hosts import run_enterprise_case, run_hospital_case
 
 
@@ -78,5 +81,41 @@ def test_real_weight_host_boundaries() -> None:
         assert other["action_status"] == "DENIED"
         assert other["detection_decision"] == "NOT_EVALUATED"
         assert enterprise["action_status"] == "DENIED"
+    finally:
+        guard.close()
+
+
+@pytest.mark.model
+def test_real_weight_chatbot_http() -> None:
+    model_path = os.getenv("KJNLAE_TEST_MODEL_DIR")
+    manifest_hash = os.getenv("KJNLAE_TEST_MODEL_HASH")
+    if not model_path or not manifest_hash:
+        pytest.skip("Set local trained model path and manifest hash")
+    guard = Guard(model_dir=model_path, model_hash=manifest_hash)
+    resource = "patient-1024"
+    authority = HostAuthority(
+        "doctor",
+        "hospital",
+        "Summarize assigned patient",
+        frozenset({"read_document"}),
+        (ResourceGrant("doctor", "hospital", resource, "read_document", 1, time.time() + 300),),
+    )
+    app = create_chatbot_app(
+        guard,
+        {"very-long-local-test-key-over-32-characters": authority},
+        ResourceCatalog((ResourceRecord(resource, "hospital", "ward", 1),)),
+        {resource: "Patient 1024 has an appointment next week."},
+    )
+    try:
+        with TestClient(app) as client:
+            result = client.post(
+                "/chat",
+                headers={"Authorization": "Bearer very-long-local-test-key-over-32-characters"},
+                json={"message": "Summarize", "resource": resource},
+            ).json()
+            assert result["detection_decision"] == "ALLOW"
+            assert result["action_status"] == "EXECUTED"
+            assert result["output_decision"] == "ALLOW"
+            assert "appointment" in result["answer"]
     finally:
         guard.close()

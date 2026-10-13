@@ -5,7 +5,7 @@ import hmac
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal, cast
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -32,20 +32,24 @@ from kjnlae.storage.sqlite import SQLiteHistory
 
 class ActionRequestV2(StrictV2):
     action: ProposedAction
-    approval_token: str | None = Field(default=None, max_length=128)
 
 
 class OutputRequestV2(StrictV2):
     text: str = Field(max_length=32768)
     structured: dict[str, str] | None = None
-    recipient: str | None = Field(default=None, max_length=254)
-    resources: list[str] = Field(default_factory=list, max_length=16)
 
     @model_validator(mode="after")
     def bounded_output(self) -> "OutputRequestV2":
         if len(self.text) + sum(len(value) for value in (self.structured or {}).values()) > 32768:
             raise ValueError("Combined output exceeds supported limit")
         return self
+
+
+class OutputInspectionResponseV2(StrictV2):
+    inspection_decision: Literal["ALLOW", "BLOCK"]
+    violations: list[str]
+    release_authorized: Literal[False] = False
+    policy_id: str = "output-inspection-v2"
 
 
 class RagInspectRequestV2(StrictV2):
@@ -182,25 +186,19 @@ def create_app(
             request.action,
             host_authority,
             catalog,
-            approval_token=request.approval_token,
             controls_ready=controls_ready(),
         )
         audit.info("action_decision", extra={"decision": result.decision})
         return result.model_dump()
 
-    @app.post("/v2/guard/output", response_model=OutputResult, dependencies=protected)
-    def output_v2(request: OutputRequestV2) -> OutputResult:
-        result = outputs.release(
-            request.text,
-            request.structured,
-            request.recipient,
-            request.resources,
-            host_authority,
-            catalog,
-            controls_ready=controls_ready(),
+    @app.post("/v2/guard/output", response_model=OutputInspectionResponseV2, dependencies=protected)
+    def output_v2(request: OutputRequestV2) -> OutputInspectionResponseV2:
+        result = outputs.inspect(request.text, request.structured)
+        audit.info("output_inspection", extra={"decision": result.decision})
+        return OutputInspectionResponseV2(
+            inspection_decision=cast(Literal["ALLOW", "BLOCK"], result.decision),
+            violations=result.violations,
         )
-        audit.info("output_decision", extra={"decision": result.decision})
-        return result
 
     @app.post("/v2/rag/inspect", dependencies=protected)
     def inspect_rag(request: RagInspectRequestV2) -> list[InspectionResultV2]:
@@ -235,9 +233,9 @@ def create_app(
 
     @app.post("/v1/guard/action", response_model=ActionResult, dependencies=protected)
     def action(request: ActionRequest) -> ActionResult:
-        return actions.authorize(
-            request.action, authority, request.approval_token, controls_ready=controls_ready()
-        )
+        if request.approval_token is not None:
+            raise HTTPException(422, "Approval tokens belong to trusted host execution")
+        return actions.authorize(request.action, authority, controls_ready=controls_ready())
 
     @app.post("/v1/guard/output", response_model=OutputResult, dependencies=protected)
     def output(request: OutputRequest) -> OutputResult:

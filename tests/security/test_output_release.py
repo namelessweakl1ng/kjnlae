@@ -45,3 +45,6 @@ def test_known_secret_encoded_in_output_is_blocked() -> None:
         guard.release("MOCK&#45;SECRET", None, None, ["patient-1"], authority, catalog).decision
         == "BLOCK"
     )
+    assert guard.inspect("MOCK<!-- -->-SECRET").decision == "BLOCK"
+    assert guard.inspect("MOCK<span></span>-SECRET").decision == "BLOCK"
+    assert guard.inspect("<!-- hidden -->").decision == "ALLOW"

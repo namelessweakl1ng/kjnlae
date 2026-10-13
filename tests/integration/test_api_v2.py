@@ -1,8 +1,19 @@
+import time
+
 import pytest
 from fastapi.testclient import TestClient
 
 from kjnlae.api.app import create_app
 from kjnlae.api.config import Settings
+from kjnlae.guards.actions import ActionGateway
+from kjnlae.guards.executor import GuardedExecutor
+from kjnlae.guards.resources import (
+    HostAuthority,
+    ProposedAction,
+    ResourceCatalog,
+    ResourceGrant,
+    ResourceRecord,
+)
 
 
 def test_v2_missing_model_is_explicit_and_v1_scan_gone(tmp_path):
@@ -51,6 +62,33 @@ def test_v2_rejects_mode_and_forged_authority(tmp_path):
             ).status_code
             == 422
         )
+        assert (
+            client.post("/v2/guard/output", json={"text": "Sensitive", "resources": []}).status_code
+            == 422
+        )
+        assert (
+            client.post(
+                "/v2/guard/action",
+                json={
+                    "action": {"tool": "send_email", "tenant": "local", "resource": "r"},
+                    "approval_token": "forged",
+                },
+            ).status_code
+            == 422
+        )
+        result = client.post("/v2/guard/output", json={"text": "Ordinary output"})
+        assert result.status_code == 200
+        assert result.json()["release_authorized"] is False
+        assert (
+            client.post(
+                "/v1/guard/action",
+                json={
+                    "action": {"tool": "send_email", "resource": "r"},
+                    "approval_token": "forged",
+                },
+            ).status_code
+            == 422
+        )
 
 
 def test_v2_production_auth(tmp_path):
@@ -75,3 +113,45 @@ def test_v2_production_auth(tmp_path):
             client.get("/v2/lab", headers={"Authorization": "Bearer " + "x" * 32}).status_code
             == 404
         )
+
+
+def test_http_preview_cannot_consume_valid_host_approval(tmp_path):
+    action = ProposedAction(
+        tool="send_email", tenant="company", resource="report", destination="allowed.test"
+    )
+    catalog = ResourceCatalog((ResourceRecord("report", "company", "alice", 1),))
+    authority = HostAuthority(
+        "alice",
+        "company",
+        "Send report",
+        frozenset({"send_email"}),
+        (
+            ResourceGrant(
+                "alice",
+                "company",
+                "report",
+                "send_email",
+                1,
+                time.time() + 300,
+                frozenset({"allowed.test"}),
+            ),
+        ),
+        frozenset({"allowed.test"}),
+    )
+    gateway = ActionGateway()
+    token = gateway.approve_v2(action, authority, catalog, reviewer="reviewer")
+    app = create_app(
+        Settings(database=str(tmp_path / "audit.db")),
+        action_gateway=gateway,
+        trusted_authority_v2=authority,
+        resource_catalog=catalog,
+    )
+    with TestClient(app) as client:
+        rejected = client.post(
+            "/v2/guard/action", json={"action": action.model_dump(), "approval_token": token}
+        )
+        assert rejected.status_code == 422
+    executed = GuardedExecutor(gateway, catalog).execute(
+        action, authority, lambda _: "sent", approval_token=token
+    )
+    assert executed.status == "EXECUTED"
