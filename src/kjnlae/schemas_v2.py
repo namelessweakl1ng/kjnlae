@@ -45,6 +45,10 @@ class InspectionResultV2(StrictV2):
     latency_ms: float = Field(default=0, ge=0)
     inspection_complete: bool
     model_hash: str | None = None
+    model_score: float | None = Field(default=None, ge=0, le=1)
+    risk_level: Literal["unknown", "low", "elevated", "high"] = "unknown"
+    explanation: str = ""
+    recommended_action: str = ""
 
     @model_validator(mode="after")
     def incomplete_is_not_clear(self) -> "InspectionResultV2":
@@ -53,3 +57,14 @@ class InspectionResultV2(StrictV2):
         if not self.inspection_complete and self.detection_status != "INCOMPLETE":
             raise ValueError("Partial inspection must report INCOMPLETE")
         return self
+
+
+class AuthorizationResultV2(StrictV2):
+    decision: Decision
+    reason: str
+    action_digest: str
+    executed: bool = False
+    policy_id: str = "action-v2"
+    resource_version: int | None = None
+    resource_tenant: str | None = None
+    resource_owner: str | None = None

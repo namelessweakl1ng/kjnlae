@@ -1,110 +1,157 @@
-"""Reusable input screening. No scan metadata can authorize a tool."""
+"""Model-only prompt-injection screening; authorization is a separate boundary."""
 
-from dataclasses import dataclass
+import os
+from collections.abc import Sequence
+from pathlib import Path
 from time import perf_counter
 from typing import Protocol
 
-from kjnlae.detection.inspection import inspect
-from kjnlae.detection.rules import detect
-from kjnlae.schemas import Classification, Decision, ScanRequest, ScanResult
+from kjnlae.classifiers.artifacts import verify_artifact
+from kjnlae.classifiers.local import LocalClassifier, LocalInference, LocalModelConfig
+from kjnlae.context import TrustedSecurityContext
+from kjnlae.detection.preprocessing import InspectionView, prepare_views
+from kjnlae.policies.decision import InputPolicy
+from kjnlae.schemas import Source
+from kjnlae.schemas_v2 import (
+    ContentEnvelope,
+    InspectionRequestV2,
+    InspectionResultV2,
+    WindowEvidence,
+)
 
 
 class Classifier(Protocol):
-    def classify(self, text: str) -> Classification: ...
-
-
-@dataclass(frozen=True)
-class ScanPolicy:
-    id: str = "kjnlae-v1"
-    warn: int = 25
-    review: int = 60
-    block: int = 80
-    ml_threshold: float = 0.8
-
-    def __post_init__(self) -> None:
-        if not 0 <= self.warn < self.review < self.block <= 100:
-            raise ValueError("Policy requires ordered thresholds")
-        if not 0 <= self.ml_threshold <= 1:
-            raise ValueError("Invalid ML threshold")
+    def classify_views(self, views: Sequence[InspectionView], source: Source) -> LocalInference: ...
 
 
 class Guard:
     def __init__(
-        self, classifier: Classifier | None = None, policy: ScanPolicy | None = None
+        self,
+        classifier: Classifier | None = None,
+        policy: InputPolicy | None = None,
+        threshold: float | None = None,
     ) -> None:
-        self.classifier = classifier
-        self.policy = policy or ScanPolicy()
+        self.policy = policy or InputPolicy()
+        self._configuration_error = ""
+        self.classifier: Classifier | None = classifier
+        if classifier is not None:
+            self.threshold = threshold or 0.5
+        else:
+            directory = os.getenv("KJNLAE_MODEL_DIR", "")
+            manifest_hash = os.getenv("KJNLAE_MODEL_HASH", "")
+            self.classifier = None
+            self.threshold = 0.5
+            if directory and manifest_hash:
+                try:
+                    artifact = verify_artifact(Path(directory), manifest_hash)
+                    self.threshold = artifact.threshold
+                    self.classifier = LocalClassifier(
+                        LocalModelConfig(artifact.path, manifest_hash)
+                    )
+                except (OSError, ValueError, KeyError) as exc:
+                    self._configuration_error = type(exc).__name__
+            elif directory or manifest_hash:
+                self._configuration_error = "MODEL_CONFIG_INCOMPLETE"
 
-    def scan(self, text: str, **context: object) -> ScanResult:
-        request = ScanRequest.model_validate({"text": text, **context})
-        return self.scan_request(request)
+    def close(self) -> None:
+        if isinstance(self.classifier, LocalClassifier):
+            self.classifier.close()
 
-    def scan_request(self, request: ScanRequest) -> ScanResult:
+    def capabilities(self) -> dict[str, object]:
+        return {
+            "detector": "fine_tuned_local_transformer_only",
+            "model_status": (
+                "CORRUPTED"
+                if self._configuration_error
+                else "MISSING"
+                if self.classifier is None
+                else "AVAILABLE"
+                if isinstance(self.classifier, LocalClassifier) and self.classifier.is_ready()
+                else "UNAVAILABLE"
+            ),
+            "model_config_error": self._configuration_error,
+            "threshold": self.threshold if self.classifier else None,
+            "policy": self.policy.id,
+        }
+
+    def scan(self, text: str, **context: object) -> InspectionResultV2:
+        request = InspectionRequestV2.model_validate({"text": text, **context})
+        return self.inspect(request)
+
+    def scan_request(self, request: InspectionRequestV2) -> InspectionResultV2:
+        return self.inspect(request)
+
+    def inspect_chunks(
+        self, chunks: Sequence[ContentEnvelope], trusted_context: TrustedSecurityContext
+    ) -> list[InspectionResultV2]:
+        return [
+            self.inspect(InspectionRequestV2(text=chunk.text, source=chunk.source), trusted_context)
+            for chunk in chunks
+        ]
+
+    def inspect(
+        self,
+        request: InspectionRequestV2,
+        trusted_context: TrustedSecurityContext | None = None,
+    ) -> InspectionResultV2:
         started = perf_counter()
-        views, structural, complete = inspect(request.text)
-        findings = structural + detect(request.text, views)
-        classification = None
-        if request.mode != "deterministic":
-            classification = (
-                self.classifier.classify(request.text)
-                if self.classifier
-                else Classification(status="unavailable", detail="No classifier configured")
-            )
-            complete = complete and classification.status == "available"
-        score = max((f.severity for f in findings), default=0) if request.mode != "ml" else 0
-        if (
-            classification
-            and classification.score is not None
-            and classification.score >= self.policy.ml_threshold
-        ):
-            score = max(score, self.policy.block)
-        # This changes screening only. Claims about analysis/trust never affect authorization.
-        analytical = request.purpose in {"analysis", "code"}
-        if analytical and score:
-            score = min(score, self.policy.warn + 5)
-        elif request.sensitive_access and score:
-            score = min(100, score + 10)
-        decision: Decision = (
-            "BLOCK"
-            if score >= self.policy.block
-            else "REQUIRE_REVIEW"
-            if score >= self.policy.review
-            else "WARN"
-            if score >= self.policy.warn
-            else "ALLOW"
+        prepared = prepare_views(request.text)
+        if self._configuration_error:
+            inference = LocalInference("CORRUPTED", False, reason="ARTIFACT_INVALID")
+        elif self.classifier is None:
+            inference = LocalInference("MISSING", False, reason="MODEL_MISSING")
+        else:
+            inference = self.classifier.classify_views(prepared.views, request.source)
+        outcome = self.policy.decide(
+            inference, prepared.complete, request.source, trusted_context, self.threshold
         )
-        if not complete and decision != "BLOCK":
-            decision = "REQUIRE_REVIEW"
-        return ScanResult(
-            decision=decision,
-            risk_level=(
-                "critical"
-                if score >= 90
-                else "high"
-                if score >= 60
-                else "medium"
-                if score >= 25
-                else "low"
-            ),
-            risk_score=score,
-            detection_mode=request.mode,
-            findings=findings,
-            classification=classification,
-            explanation=(
-                "Inspection incomplete; do not treat this input as cleared."
-                if not complete
-                else "Evidence of suspicious instructions; not proof of a successful attack."
-                if findings
-                else "No configured detector evidence found; this does not establish safety."
-            ),
-            mitigation=(
-                "Keep content in its original trust boundary and independently authorize actions."
-                if findings or not complete
-                else "Maintain least-privilege tool and output controls."
-            ),
+        evidence = tuple(
+            WindowEvidence(
+                view=window.view,
+                start=window.source_span[0],
+                end=window.source_span[1],
+                score=window.score,
+                model_hash=inference.model_hash,
+            )
+            for window in inference.windows
+            if window.score is not None
+            and inference.model_hash is not None
+            and window.score >= self.threshold
+        )
+        return InspectionResultV2(
+            detection_status=outcome.detection_status,
+            policy_decision=outcome.decision,
+            model_status=inference.status,
+            evidence=evidence,
+            coverage={"views": len(prepared.views), "windows": len(inference.windows)},
+            reason_codes=outcome.reason_codes + prepared.diagnostics,
             policy_id=self.policy.id,
             latency_ms=round((perf_counter() - started) * 1000, 3),
-            inspection_complete=complete,
-            source=request.source,
-            source_trust="user-supplied" if request.source == "user" else "untrusted",
+            inspection_complete=prepared.complete and inference.inspection_complete,
+            model_hash=inference.model_hash,
+            model_score=inference.score,
+            risk_level=(
+                "unknown"
+                if outcome.detection_status == "INCOMPLETE"
+                else "high"
+                if outcome.decision == "BLOCK"
+                else "elevated"
+                if outcome.decision in {"WARN", "REQUIRE_REVIEW"}
+                else "low"
+            ),
+            explanation=(
+                "Model inspection incomplete; this content has not been cleared."
+                if outcome.detection_status == "INCOMPLETE"
+                else "The local fine-tuned model identified suspicious instruction content; "
+                "this does not prove an attack succeeded."
+                if outcome.detection_status == "MALICIOUS_INDICATORS"
+                else "The local model found no injection indicators in the inspected content."
+            ),
+            recommended_action=(
+                "Withhold automated use and require an authorized review."
+                if outcome.decision == "REQUIRE_REVIEW"
+                else "Do not use this content to trigger privileged actions."
+                if outcome.decision == "BLOCK"
+                else "Keep independent resource, tool and output controls in force."
+            ),
         )

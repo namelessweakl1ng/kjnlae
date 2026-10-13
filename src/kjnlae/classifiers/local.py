@@ -17,6 +17,7 @@ from typing import Any
 from kjnlae.classifiers.artifacts import verify_artifact
 from kjnlae.detection.preprocessing import InspectionView
 from kjnlae.schemas import Classification, Source
+from kjnlae.schemas_v2 import ModelStatus
 
 
 @dataclass(frozen=True)
@@ -221,7 +222,7 @@ class ModelWindow:
 
 @dataclass(frozen=True)
 class LocalInference:
-    status: str
+    status: ModelStatus
     inspection_complete: bool
     score: float | None = None
     windows: tuple[ModelWindow, ...] = ()
