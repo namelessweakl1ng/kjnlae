@@ -75,7 +75,7 @@ def _sha(path: Path) -> str:
 
 def _score_rows(model_dir: Path, rows: list[dict[str, Any]]) -> tuple[list[float], list[float]]:
     import torch
-    from transformers import AutoModelForSequenceClassification, AutoTokenizer  # type: ignore[attr-defined]
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
     torch.set_num_threads(4)
     tokenizer = AutoTokenizer.from_pretrained(
