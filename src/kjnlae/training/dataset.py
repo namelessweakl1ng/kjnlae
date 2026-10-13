@@ -110,7 +110,7 @@ def import_deepset(source: Path, target: Path, split: Split) -> int:
         or hashlib.sha256(source.read_bytes()).hexdigest() != (DEEPSET_HASHES[split])
     ):
         raise ValueError("Deepset source SHA256 differs from reviewed pinned parquet")
-    import pyarrow.parquet as parquet  # type: ignore[import-untyped]
+    import pyarrow.parquet as parquet
 
     rows: list[str] = []
     for index, item in enumerate(parquet.read_table(source).to_pylist()):
