@@ -1401,3 +1401,653 @@ After the first hour, read `guards/resources.py`, `guards/actions.py`, `guards/e
 
 The first part explains the product by following tasks through it. This second part is a **code-reader's reference**: how modules define and use public/private symbols, which invariants matter, how algorithms fail, and which files/tests must change together. This is the closest equivalent to the second half of the archived v0.1 deep dive, updated for genuinely trained, model-only v0.2.
 
+
+## 19. Detailed directory and file inventory
+
+Unlike a short folder diagram, this section names what each important file is *for*, what it depends on and whether a maintainer should edit it. Use the GitHub file tree if another test, fixture or report was added after this snapshot.
+
+### 19.1 `.github/` — automation
+
+- `.github/workflows/ci.yml` is the source of truth for hosted CI. It runs on push and pull request.
+- `backend` is a two-version Python matrix (3.12 and 3.13) that installs locked dependencies, runs `scripts/verify_all.sh`, audits Python dependencies and validates explicit no-model benchmark behavior.
+- `frontend` installs packages without lifecycle scripts in CI, runs Vitest and Vite/TypeScript build and audits npm packages.
+- `container` builds Compose, starts the gateway, runs a smoke check against the expected degraded/no-model behavior and collects logs on cleanup.
+- The CI checkout intentionally excludes privately retained model backups. An external model download during every scan is not part of the CI contract.
+- Changes to workflow permissions, network access, dependencies or external actions deserve security review. CI credentials should never contain the maintainer's model-publishing token.
+
+### 19.2 `configs/` — trusted deployment examples
+
+- `configs/authority.example.json` demonstrates the structure of host-owned resource records, allowed tools, grants and destinations.
+- `configs/policies/` contains selected named policy profiles. `InputPolicy.load` expects only supported profile/version fields; random extra configuration fields are not silently accepted.
+- `configs/training.cpu.json` describes intended bounded CPU training options.
+- These files are **examples**; a malicious document cannot submit a new "authority config" through the scanner.
+- The API reads `KJNLAE_AUTHORITY_V2_FILE` when configured, checks size and symlink restrictions, and requires restricted file permissions in production.
+
+### 19.3 `datasets/`, `docs/model-data.md`, and untracked local training sources
+
+- The repository includes documentation and selected fixtures, but the complete downloaded external corpora and derived training/repro artifacts are not necessarily tracked.
+- Raw licensed input files are separately acquired and verified using pinned revisions.
+- `docs/model-data.md` documents provenance IDs, source hashes/splits and the Deepset upstream license-metadata discrepancy.
+- `training/dataset.py` is the code that enforces valid local partitions.
+- `var/data/` and `var/models/` are **local generated artifacts**, not places for committing raw third-party datasets or personal private keys.
+- Reproduction requires matching the published source revisions and following current license/notice requirements.
+
+### 19.4 `src/kjnlae/detection/`
+
+- `__init__.py` is a package marker.
+- `preprocessing.py` contains `InspectionView`, `PreparedInput`, `_normalized`, `_html_entities` and `prepare_views`.
+- This directory still uses regular expressions **to find bounded Base64 tokens and HTML entities**, but not to decide malicious/benign text. That distinction is critical for understanding v0.2's "model-only detector" claim.
+- Evidence offset mapping is produced here, but scoring and evidence selection occur in the model worker and guard.
+
+### 19.5 `src/kjnlae/classifiers/`
+
+- `artifacts.py` declares `BASE_MODEL` and `BASE_REVISION`, verifies all required files/labels, and can explicitly download the base model for training.
+- `local.py` implements `LocalInference`, `ModelWindow`, `LocalModelConfig`, `window_ranges`, `build_windows`, `_local_worker` and `LocalClassifier`.
+- `download.py` implements public Hugging Face access only on an explicit model-download command. It is independent of runtime `classify_views`.
+- Safetensors files are the approved weights; unsafe pickle-format files are rejected in the artifact directory.
+- Swapping the underlying model is a **training, evaluation and artifact-contract project**, not only a one-line string change.
+
+### 19.6 `src/kjnlae/policies/`
+
+- `decision.py` contains `Profile`, `PolicyOutcome`, `InputPolicy` and `decide`.
+- It is the precise place where a numeric score, completeness flag, declared source and *trusted* host analysis context are translated to an input-policy decision.
+- No training takes place here; policy is deterministic given an inference record and threshold.
+- A change here can affect the meaning of `ALLOW` and should have unit tests for missing/timeout/incomplete paths as well as positive/negative scores.
+
+### 19.7 `src/kjnlae/guards/`
+
+- `resources.py` owns typed resource/tenant/grant data and the in-memory catalog.
+- `actions.py` owns v2 action authorization, one-time approvals and retained older compatibility logic.
+- `executor.py` owns one-step host callback execution after exact authorization/current-resource checks.
+- `output.py` owns explicit content inspection and host-authorized release.
+- No text classifier can issue `ResourceGrant` by itself; no untrusted LLM message is a valid `HostAuthority`.
+- Production applications need an adapter from their own authenticated user/session/database state into these typed contracts.
+
+### 19.8 `src/kjnlae/api/`
+
+- `app.py` is the versioned FastAPI app and its routes.
+- `config.py` owns `Settings` and the trusted authority-file schema/reader.
+- `middleware.py` owns rate and body/query bounds.
+- `audit.py` owns safe diagnostic log configuration.
+- `chatbot.py` is a separate synthetic, credential-to-authority mapping reference host; it doesn't invoke a live LLM.
+- `app.py` is intentionally thin compared with the security domain layers: new HTTP fields require explicit schema validation and should never smuggle privileges.
+
+### 19.9 `src/kjnlae/integrations/`
+
+- `rag.py` implements `RagChunk`, `RetrievalResult` and `RagGateway`.
+- `hosts.py` contains fictional hospital/enterprise example wiring.
+- Its main lesson is **permission-before-retrieval** and **scanner-before-generation** for approved chunks.
+- Neither module replaces your own vector database, authenticating reverse proxy, real document catalog or actual LLM.
+
+### 19.10 `src/kjnlae/training/`
+
+- `dataset.py`: imports reviewed source data, validates labeled rows and creates split files/manifest.
+- `augment.py`: adds deterministic source variants of benign TRAIN examples.
+- `probe.py`: checks CPU/resource feasibility and reports whether a bounded training run is plausible.
+- `fit.py`: loads the pinned base encoder, trains with AdamW and validation, creates initial and best checkpoints and reports measured steps/resources.
+- `__init__.py`: package marker.
+- This subsystem runs offline once raw sources and the pinned base have been explicitly prepared.
+
+### 19.11 `src/kjnlae/evaluation/`
+
+- `model.py`: mathematical classification metrics, calibration, evaluation against held-out cases and evaluated manifest generation.
+- `benchmark.py`: runs the saved fixture with `Guard`, combines model and synthetic defense metrics, writes structured reports.
+- `sandbox.py`: six fictional scenarios and synthetic callback effects.
+- `bipia.py`: adapter for BIPIA-related data.
+- `fixtures.json`: default original regression examples (not a massive external test corpus).
+- Don't conflate the benchmark's `detector` section with its `defense` synthetic-execution section.
+
+### 19.12 `src/kjnlae/storage/`
+
+- `sqlite.py` defines the `HistoryStore` protocol and `SQLiteHistory` implementation.
+- It creates a locked-down file, a `scans` table and a tenant/id index.
+- It prunes by age and row count and saves only allowlisted metadata fields.
+- Full text, data-source content and evidence snippets must not be added to history without an explicit privacy/security design review.
+
+### 19.13 `frontend/` and generated assets
+
+- `src/main.tsx` imports/render the top-level app.
+- `src/App.tsx` contains request/feedback state and all five screens.
+- `src/Evidence.tsx` maps API offsets to visible text safely.
+- `src/types.ts` mirrors JSON response fields in TypeScript.
+- `src/Icon.tsx`, `src/styles.css`, root HTML/assets and Vite configuration provide presentation/build support.
+- `package-lock.json` pins the installed npm dependency graph.
+- `dist/` and `node_modules/` are generated; don't edit them as source.
+- Compiled UI served by FastAPI corresponds to `frontend/dist`, whereas `npm run dev` uses Vite.
+
+### 19.14 `examples/` — safe conceptual adapters
+
+- `authorization.py` shows host-owned security objects and basic decisions.
+- `rag.py` shows ACL filtering of retrieved chunks and scanning.
+- `hospital.py` and `enterprise.py` demonstrate fictional access boundaries.
+- `chatbot_http.py` demonstrates a local reference HTTP host with bearer credentials mapped to authority.
+- These scripts are educational host integrations with synthetic data, **not adapters to genuine medical systems or enterprise production records**.
+
+### 19.15 `tests/` — how to find a behavior quickly
+
+| Folder | Primary questions |
+|---|---|
+| `unit/` | Do pure functions, schemas, offsets and windows behave correctly? |
+| `security/` | Are trusted permissions, missing-model handling and release rules enforced? |
+| `integration/` | Does CLI/API/host composition preserve the contracts? |
+| `training/` | Do source validation, CPU training and artifact checks work? |
+| `evaluation/` | Are scores, metrics and sandbox outcomes computed honestly? |
+| `test_model_download.py` | Does public-model acquisition reject tampering and overwriting? |
+
+### 19.16 `docs/` — where claims are recorded
+
+- `architecture.md`: subsystem picture and trust boundaries.
+- `detection-engine.md`: model-only scoring and coverage.
+- `api.md`, `cli.md`: user-facing transport commands.
+- `security-policies.md`, `threat-model.md`: authority and threat assumptions.
+- `deployment.md`: hosting and security configuration requirements.
+- `model-training.md` and `model-data.md`: reproduction and dataset provenance.
+- `model-card-v0.2.md` and `public-model-release.md`: published artifact, hashes, licenses and download.
+- `benchmarks.md`, `reports/v0.2-followup-evaluation.md`: measured results and caveats.
+- `limitations.md`, `unverified-capabilities.md`: boundaries and unfinished external validation.
+- `migration-v0.1-v0.2.md`: incompatible changes from signature/optional-ML v0.1.
+- `archive/v0.1-codebase.md`: historical reference only; do **not** use its v0.1 code paths to explain current v0.2.
+
+## 20. Python symbols, contracts, objects and their callers
+
+This is a source-oriented reference similar to a symbol table. The goal is to answer "What exactly is `Guard`?" or "Where does `approval_token` become meaningful?" rather than only listing filenames.
+
+### 20.1 `kjnlae.__init__`
+
+`from kjnlae import Guard` is the intended top-level SDK import. `__version__ = "0.2.0"` reflects the package release version. The separate CLI points at `kjnlae.cli:main`; importing the package should not start a server or download a model.
+
+### 20.2 Shared `schemas.py` versus v2 `schemas_v2.py`
+
+`schemas.py` retains shared `Source`, `Decision` and older action/output compatibility types. Do not assume every older schema field is valid on current `/v2` routes.
+
+`schemas_v2.py` defines `StrictV2` with `extra="forbid"` and immutable settings. Derived models include:
+
+| Symbol | Fields/contract | Consumer |
+|---|---|---|
+| `ContentEnvelope` | `text` 1–32768, `source`, optional `origin_id` | RAG chunk inspection |
+| `InspectionRequestV2` | `text` 1–32768, `source`, optional `context_ref` | `Guard` and `/v2/scan` |
+| `WindowEvidence` | `view`, `start`, `end`, `score` in [0,1], `model_hash` | `InspectionResultV2` |
+| `InspectionResultV2` | Status, policy, coverage, reason codes, evidence, hash/score, latency, completeness, explanation | SDK/API/UI |
+| `AuthorizationResultV2` | `decision`, `reason`, action digest, executed flag and optional verified resource fields | Action gateway/host |
+| `DetectionStatus` | `NO_EVIDENCE_FOUND / MALICIOUS_INDICATORS / INCOMPLETE` | Policies, frontend |
+| `ModelStatus` | `AVAILABLE/MISSING/UNAVAILABLE/CORRUPTED/TIMED_OUT/ERROR` | Worker, guard, readiness |
+
+**Key invariant:** if `detection_status == "INCOMPLETE"`, the input policy cannot claim `ALLOW` or `WARN`. If `inspection_complete` is false, the status must be `INCOMPLETE`. This is enforced by a Pydantic `model_validator`, not left to a dashboard convention.
+
+### 20.3 `TrustedSecurityContext`
+
+`context.py` defines a frozen dataclass with `principal`, `tenant`, `task`, `analysis_intent` (default false), and `sensitive` (default false). It rejects empty principal/tenant. The host supplies these values *out of band* after authentication. They are not constructed from `request.context_ref` text.
+
+### 20.4 `Guard`'s public interface
+
+| Symbol | Signature concept | Function |
+|---|---|---|
+| `Guard.__init__(classifier=None, policy=None, threshold=None, model_dir=None, model_hash=None)` | Explicit overrides and/or environment | Configure verified classifier + policy |
+| `Guard.scan(text, **context)` | Text with source and allowed schema fields | Validate and return an inspection |
+| `Guard.scan_request(request)` | Preconstructed `InspectionRequestV2` | Delegate to `inspect` |
+| `Guard.inspect_chunks(chunks, trusted_context)` | Bounded list of `ContentEnvelope` | Scan each under host-owned context |
+| `Guard.inspect(request, trusted_context=None)` | Validated request plus optional trusted context | Main orchestration path |
+| `Guard.capabilities()` | No input | Return model/policy status and hash |
+| `Guard.close()` | No input | Tear down local model process |
+
+`Guard` accepts an injected compatible classifier through a Python `Protocol` for testing. The default runtime still requires a **verified trained local model**. The existence of a testing protocol does not mean an arbitrary untrusted request can choose an alternative inference implementation.
+
+### 20.5 `InspectionView` and `PreparedInput`
+
+`InspectionView(name, text, mapping)` stores one representation of submitted content and a per-character tuple identifying the span in the original text. For the original view, the mapping of character `i` is `(i, i+1)`. `PreparedInput` bundles one or more such views with diagnostic names and a `complete` boolean.
+
+The invariant is not simply "some transformed text exists"; transformations must produce **bounded views** whose spans can be traced back to their source. This is how evidence is visualized without losing origin information.
+
+### 20.6 `LocalInference`, `ModelWindow`, `LocalModelConfig`
+
+`ModelWindow`: the named view, original source span and optional numeric score for one inspected window.
+
+`LocalInference`: worker status, completion, aggregate score, scored windows, reason, and model hash. This is **pre-policy** evidence and should not be shown as a fully authorized decision.
+
+`LocalModelConfig`: path/hash and resource limits, including `token_limit=128`, `overlap=32`, `max_windows=128`, `batch_size=8`, `timeout=45` seconds and `memory_mb=12288`. The constructor validates bounds and the hash shape so arbitrary out-of-range budgets cannot silently reach the worker.
+
+### 20.7 `InputPolicy` and `PolicyOutcome`
+
+`InputPolicy(profile="general", version="v2-1", policy_hash="built-in")` represents a trusted ruleset **for interpreting model evidence**, not a lexical attack signature engine. `load(path)` parses a narrowly controlled JSON policy. `id` combines profile/version/hash. `decide(inference, preprocessing_complete, source, trusted_context, threshold)` returns `PolicyOutcome(decision, detection_status, reason_codes)`.
+
+### 20.8 `ResourceRecord`, `ResourceGrant`, `HostAuthority`
+
+A `ResourceRecord` is the catalog's current record metadata. A `ResourceGrant` is a specific permission tied to principal, tenant, exact resource, operation, version and expiration. `HostAuthority` groups the caller's verified context, permitted tools and grants. All are constructed by the host/injected trusted configuration, **not the model**.
+
+`ResourceGrant.permits(action, principal, version)` returns true only if those exact fields align, the grant has not expired and any destination is allowed by the grant.
+
+### 20.9 `ProposedAction` and `ActionGateway`
+
+A proposal contains the limited operation, tenant, resource, destination and bounded parameter map. `ActionGateway.authorize_v2` checks a proposal against authority/catalog and returns a decision; `approve_v2` issues an exact-review token when eligible. The older `Authority`/`Grant` objects and `authorize`/`approve` methods remain for compatibility and do not change the v2 contract.
+
+### 20.10 `GuardedExecutor` and `ExecutionResult`
+
+`GuardedExecutor.execute` receives a `ProposedAction`, `HostAuthority` and a trusted `Callable`. It first calls `authorize_v2`. If that does not return `ALLOW`, callback execution is denied. If it does, the executor checks the resource's current version/tenant/owner and executes within `ResourceCatalog.run_if_current`. Its result is one of `EXECUTED`, `DENIED` or `UNKNOWN`.
+
+`UNKNOWN` explicitly acknowledges a callback may have partially caused side effects before raising; a caller must not automatically retry it as if it were guaranteed not to run.
+
+### 20.11 `OutputGuard`
+
+`inspect` is content analysis only. `release` additionally accepts recipient, resource list and trusted authority/catalog and can deny unauthorized release. The HTTP output route intentionally calls `inspect`, not an untrusted `release` with request-derived authority.
+
+### 20.12 `Settings`, `AuthorityFile`, `V2AuthorityFile`
+
+`Settings` is an immutable configuration holder loaded from environment variables. It can create legacy and current trusted authorization objects. `V2AuthorityFile` has principal, tenant, task, allowed tool names, grants, destinations and resource records; `V2GrantFile` specifies resource, operation, version, expiry and destinations. The loader validates constraints *before* issuing `ResourceGrant` values.
+
+### 20.13 `create_app`
+
+The FastAPI factory combines settings, guard, resource authority, action gateway, output guard and SQLite; it registers routes and middleware, then returns a real `FastAPI` object. It can accept dependency overrides for tests. This is the main junction between transport code and security domain code.
+
+### 20.14 `RagChunk` and `RagGateway`
+
+`RagChunk` packages ID, resource, tenant, title and text. `RagGateway.retrieve(query, context, grants)` validates bounded query length, filters candidate documents by tenant/title/query, checks catalog and exact read grants, scans permitted chunks and withholds those not passing scan policy. The return structure includes accepted chunks, citation IDs and withheld IDs.
+
+### 20.15 `SQLiteHistory`
+
+`SQLiteHistory.__init__(path, retention=500, max_age_days=7)` ensures the database file is created with restricted permissions, creates the table/index, and sets retention policy. `record` saves only allowed scalar metadata; `list` filters by tenant and limits rows; `clear` removes tenant records. Its `HistoryStore` protocol facilitates replacing the storage implementation.
+
+### 20.16 Training and evaluation public symbols
+
+| Symbol | Where | Purpose |
+|---|---|---|
+| `TrainingExample` | `training/dataset.py` | Validated labeled row with split/source/provenance |
+| `prepare_dataset` | `training/dataset.py` | Separate safe partitions and emit hashes |
+| `augment_benign_sources` | `training/augment.py` | Deterministic TRAIN-only source variants |
+| `ProbeConfig` / `run_probe` | `training/probe.py` | Bounded CPU feasibility |
+| `FitConfig` / `fit` | `training/fit.py` | Bounded supervised CPU fine-tuning |
+| `classification_metrics` | `evaluation/model.py` | TP/TN/FP/FN, precision, recall, F1 and error rates |
+| `calibrate_threshold` | `evaluation/model.py` | Select threshold on calibration scores |
+| `evaluate_and_promote` | `evaluation/model.py` | Compare control/model, save report and evaluated artifact |
+| `benchmark` | `evaluation/benchmark.py` | Evaluate saved fixture with actual `Guard` and scenario metrics |
+| `run_scenarios` | `evaluation/sandbox.py` | Six local synthetic action cases |
+| `markdown_report` | `evaluation/benchmark.py` | Human-readable recorded metrics |
+
+### 20.17 Artifact identity and publishing symbols
+
+| Symbol | Location | Meaning |
+|---|---|---|
+| `BASE_MODEL` | `classifiers/artifacts.py` | `distilbert/distilbert-base-uncased` |
+| `BASE_REVISION` | `classifiers/artifacts.py` | Pinned upstream commit |
+| `ArtifactManifest` | `classifiers/artifacts.py` | Verified artifact identity, threshold, training steps/status |
+| `verify_artifact` | `classifiers/artifacts.py` | Manifest/weights/tokens and label checks |
+| `prepare_base_model` | `classifiers/artifacts.py` | Explicit download of pretrained base for training |
+| `REVIEWED_V3_MANIFEST_SHA256` | `classifiers/download.py` | Pinned public v0.2 manifest hash |
+| `download_verified_model` | `classifiers/download.py` | Explicit safe download to new directory |
+| `prepare_public_files` | `scripts/publish_model.py` | Strict public upload inventory |
+| `main` | `scripts/publish_model.py` | Interactive `--publish` path for maintainer |
+
+## 21. Preprocessing and evidence-offset algorithms
+
+The two conceptual problems here are **inspection completeness** and **source provenance**. A scanner must not silently inspect only a convenient subset while reporting that the whole message is clear; and a visible highlight should point back to the original submitted text.
+
+### 21.1 Input bounds and validation
+
+`InspectionRequestV2.text` has a 1–32,768 character constraint. Empty or overlong requests are validation errors before inference. The `source` field is a limited enum-like type; unexpected sources should not invent new trusted status. `context_ref` is bounded but carries no authority.
+
+The source contract is strict by design. If you extend source types for a new tool integration, update both the Python schema and the frontend `sources` selector/types/tests.
+
+### 21.2 Stage 0: original view
+
+`prepare_views(text)` creates `InspectionView(name="original", text=text, mapping=...)`. For every codepoint at position `i`, its source map is `(i, i+1)`. It always exists for valid nonempty text. All other views are additional attempts to expose instructions that were transformed or encoded; they don't replace the original.
+
+### 21.3 Stage 1: Unicode normalization
+
+`_normalized` removes Unicode formatting-category (`Cf`) characters and applies NFKC normalization per input character. A single source character may expand into several normalized characters; each of those normalized characters maps to the same original single-character source interval.
+
+For example, compatibility characters or certain unusual spacing forms may normalize into more ordinary text. This can make a model see something closer to its learned English distribution without inventing separate keyword rules.
+
+**Limit:** applying NFKC and dropping some format characters is not an exhaustive Unicode-confusable or multilingual adversarial-resilience guarantee.
+
+### 21.4 Stage 2: HTML entities
+
+`_html_entities` recognizes a bounded pattern of named/decimal/hexadecimal HTML entities. It decodes them and maps all resulting characters to the span occupied by the original entity. If the transformation would not change content, there is no need to append a redundant view. This is text decoding; no HTML parser executes scripts or fetches resources.
+
+Example:
+
+```text
+Submitted source: "Ignore&#32;instructions"
+Additional view:  "Ignore instructions"
+Mapped space:    original characters covering "&#32;"
+```
+
+If a model flags a token sequence including the decoded space, evidence can still link that span to the source text, not an unseen transformed string.
+
+### 21.5 Stage 3: selected Base64
+
+The preprocessing module uses a regex to locate **candidate encodings** of bounded Base64-like form. This is not a regex attack signature: it cannot label an injection. Candidate bytes are decoded only when valid Base64, decodable as UTF-8 and mostly printable/whitespace. Derived decoded characters map back to the original *encoded* span.
+
+Budgets matter:
+
+| Budget in current preprocessing | Why it exists |
+|---|---|
+| At most 16 candidates considered | Avoid attacker flooding decoder work |
+| Individual candidate limit of 4096 encoded characters | Bound decode effort |
+| Aggregate decoded character limit of 8192 | Bound derived input expansion |
+| At most 8 total views | Keep model evaluation bounded |
+| Valid, mostly printable UTF-8 only | Avoid arbitrary binary decoding as "text" |
+
+Too many candidates or a derived-view budget exceedance records a diagnostic such as `ENCODED_CANDIDATE_LIMIT` or `DERIVED_VIEW_LIMIT`, making `PreparedInput.complete` false. Complete inspection cannot be asserted on a silently discarded excess.
+
+**Nuance:** some eligible-looking but unsupported encodings do not magically become readable; the project explicitly documents that novel/multi-layer encodings may evade its coverage.
+
+### 21.6 The meaning of `mapping`
+
+For each transformed-view character, the mapping stores a tuple into the raw source. For ordinary characters the tuple covers one codepoint; for an HTML entity it may cover all the entity syntax; for Base64-derived text it can cover the whole encoded token. Therefore, the evidence feature shows **the source span responsible for a suspicious model window**, not a mathematical pinpoint of exactly which word caused the classifier's decision.
+
+### 21.7 Worker token offsets are different from source offsets
+
+A tokenizer returns offsets **within each selected `InspectionView.text`**. `build_windows` combines those offsets and the view's `mapping` to obtain source spans. It must not return tokenizer offsets directly to the browser as if they referred to the untransformed input.
+
+Examples of when this matters: HTML entities, Unicode normalization, non-BMP characters, long tokenized text split into several windows. A mismatch can make the dashboard highlight the wrong characters even when the model scored the right window.
+
+### 21.8 No code execution in preprocessing
+
+The module uses `unicodedata`, `html.unescape` and `base64.b64decode` to prepare text. It does not `eval` strings, run shell commands, import Python from the submitted text, visit embedded URLs, or treat the decoded instructions as authoritative. Adding any such behavior would fundamentally change the threat model.
+
+### 21.9 Testing the algorithm
+
+Open `tests/unit/test_preprocessing.py` and `tests/unit/test_model_windows.py`. To add a new transformation, write cases for normal text, strange Unicode, empty/invalid candidates, multiple encodings, character offsets, budget boundaries, and deliberately incomplete coverage. A successful detector on one illustrative encoded payload is weaker evidence than correct coverage/failure behavior across many cases.
+
+## 22. Local inference adapter, CPU worker and failures
+
+### 22.1 Why use a separate spawned process?
+
+Loading PyTorch and Transformers may take memory and time. The project starts a dedicated spawned CPU process lazily so it can enforce resource limits, communicate only structured results and terminate a stuck worker. A process boundary does not create perfect adversarial isolation, but it limits the ways model inference can monopolize the main FastAPI process.
+
+`LocalClassifier` holds the process, parent pipe and a thread lock. The local worker receives view data and source, returns scores/reasons, and is shut down on guard closure. The worker imports heavy ML dependencies internally, so importing the lightweight SDK does not automatically import the whole training stack.
+
+### 22.2 Full `LocalModelConfig` reference
+
+| Field | Default | What it controls |
+|---|---:|---|
+| `model_dir` | required | Local artifact directory |
+| `manifest_hash` | required | Pinned SHA-256 of `manifest.json` |
+| `token_limit` | 128 | Maximum token IDs per model input, including prefix/specials |
+| `overlap` | 32 | Shared content tokens across consecutive windows |
+| `max_windows` | 128 | Maximum combined windows across all prepared views |
+| `batch_size` | 8 | Number of model windows per PyTorch batch |
+| `timeout` | 45 seconds | Maximum response deadline for inference/worker startup |
+| `memory_mb` | 12,288 | Worker virtual address-space limit, as configured |
+
+`__post_init__` requires a lowercase 64-character hash and supported ranges: token limit 32–512, overlap below token limit minus reserved prefix space, max windows 1–256, batch size 1–16, timeout between 0 and 300 seconds, memory 2048–24576 MB. These checks guard configuration validity, not model accuracy.
+
+### 22.3 Startup details in `_local_worker`
+
+The spawned child:
+
+1. Sets `OMP_NUM_THREADS=4` and a resource limit for virtual memory (where supported).
+2. Imports PyTorch, tokenizer/model loaders.
+3. Re-verifies the local model directory against the pinned manifest.
+4. Sets torch CPU thread/interop counts.
+5. Loads `AutoTokenizer.from_pretrained` with `local_files_only=True`, `trust_remote_code=False` and fast tokenizer mode.
+6. Loads `AutoModelForSequenceClassification.from_pretrained` with `use_safetensors=True`, `local_files_only=True` and `trust_remote_code=False`.
+7. Moves the model to CPU, calls `eval()`, signals loaded.
+8. Waits for bounded requests on its pipe until shutdown.
+
+If loading fails, the parent does not substitute a pretrained base head or a keyword detector. It receives/records a model error/incomplete scan.
+
+### 22.4 Source prefix and usable content width
+
+Each request includes the source category in a prefix:
+
+```python
+prefix_ids = tokenizer.encode(
+    f"Source: {source}\nContent:\n", add_special_tokens=False
+)
+width = token_limit - tokenizer.num_special_tokens_to_add(pair=False) - len(prefix_ids)
+```
+
+The model input cannot use all 128 tokens for actual document content: the prefix and model's special tokens take space. The worker enforces a minimum usable width to avoid invalid/degenerate windows.
+
+### 22.5 Sliding token windows
+
+`window_ranges(length, width, overlap)` yields spans where the next start advances by `width - overlap`. The final span stops at the content's end.
+
+For a **toy example** of 17 content tokens, width 8 and overlap 2:
+
+```text
+Window 1:  0 ... 7
+Window 2:  6 ... 13
+Window 3: 12 ... 16
+```
+
+Overlapping helps avoid splitting attack-relevant context exactly at a boundary. But larger windows and overlaps use more CPU and can produce more chances for benign text to trigger a high score.
+
+### 22.6 Window budget across every view
+
+For each original/derived view, tokenizer offsets are used to construct the corresponding model windows. The result list is capped at `max_windows` **across the whole inspection**. If the complete view set would exceed that limit, the worker returns an error instead of silently scanning the first section and declaring the rest benign.
+
+This design is fundamental: a defender must not interpret "the first few paragraphs looked okay" as "the whole attachment was checked."
+
+### 22.7 Inference batching
+
+For each window, the worker adds prefix IDs, prepares model special tokens, pads a batch and calls:
+
+```python
+with torch.inference_mode():
+    probabilities = torch.softmax(model(**batch).logits, dim=-1)[:, 1]
+```
+
+This produces the score for class `INJECTION` (index 1). The worker returns scores for every window and the **maximum** score as the aggregate model evidence. The count of returned scores must exactly match the constructed window specs; otherwise the result is invalid.
+
+### 22.8 Mapping evidence back to raw text
+
+`build_windows` takes each tokenized view's offsets and maps its window boundaries through the corresponding `InspectionView.mapping` into raw source spans. `Guard.inspect` converts qualifying windows into `WindowEvidence` objects when their score meets/exceeds the calibrated threshold. The frontend then uses those raw spans to highlight the input.
+
+Model evidence is at the **window** level. It does not prove which exact phrase caused classification or whether an attack would succeed.
+
+### 22.9 Parent-side lock, timeout and worker lifecycle
+
+`LocalClassifier.classify_views` tries to take a non-blocking lock. If another caller is already using the worker, it can return `UNAVAILABLE / MODEL_BUSY` rather than queuing indefinitely. `_classify_locked` checks whether it needs to spawn the worker, sends view/source work, polls the connection with a deadline and handles completion or failures.
+
+Timeouts, pipe errors, process crashes and invalid responses produce model statuses/reasons handled by the guard as incomplete. Closing the classifier terminates/joins the process and releases communication resources.
+
+### 22.10 Failure vocabulary
+
+| Status/reason | Meaning |
+|---|---|
+| `MISSING / MODEL_MISSING` | Local artifact directory absent or not configured |
+| `CORRUPTED / ARTIFACT_INVALID` | Verification failed |
+| `UNAVAILABLE / MODEL_BUSY` | Single worker already in use |
+| `TIMED_OUT` | Worker didn't respond within bounded deadline |
+| `ERROR / COVERAGE_EXCEEDED` | Too many windows to inspect completely |
+| `ERROR / WINDOW_COUNT_MISMATCH` | Worker didn't produce one score per expected window |
+| `ERROR / MODEL_WORKER_FAILED` | Model worker errored/crashed |
+| `AVAILABLE` | Complete worker result returned; policy still decides input action |
+
+Reason names may vary by the exact failure path. **All non-`AVAILABLE` statuses, or any partial coverage, must prevent a clean detector result.**
+
+### 22.11 Where the worker is tested
+
+`tests/unit/test_model_windows.py` focuses on pure window indexing and mapping. `tests/unit/test_model_only_scan.py`, `tests/security/test_no_detector_fallback.py` and real-weight integration tests check the detector contract. Unit tests with a stub classifier cannot replace the separate Fedora release gate that actually loaded `model.safetensors` and ran inference.
+
+## 23. Model artifact verification and public distribution
+
+### 23.1 Two model artifacts exist conceptually
+
+**Pretrained base:** the official DistilBERT encoder downloaded at a fixed upstream revision before training. **Fine-tuned released artifact:** weights/config/tokenizer updated for two-class kjnlae classification, with an evaluated manifest and threshold. The base model by itself is not an injection detector.
+
+### 23.2 What is inside a released local model directory?
+
+A typical verified v0.2 directory contains:
+
+```text
+var/models/full-v0.2-v3-reviewed/
+├── manifest.json
+├── config.json
+├── model.safetensors
+├── tokenizer.json
+├── tokenizer_config.json
+├── special_tokens_map.json
+└── vocab.txt
+```
+
+`model.safetensors` contains trained tensor weights; `config.json` stores architecture and label IDs; tokenizer files control how text becomes model inputs; `manifest.json` pins the exact expected bytes and threshold. These files must belong together.
+
+### 23.3 What `verify_artifact` actually enforces
+
+`src/kjnlae/classifiers/artifacts.py`:
+
+1. Rejects a symlink or non-directory model path.
+2. Requires a real, non-symlink `manifest.json`.
+3. Computes SHA-256 of the manifest and compares to the deployment pin when supplied.
+4. Checks the pinned base DistilBERT revision.
+5. Requires a positive integer trained-step count.
+6. Requires evaluated status with `quality_status=EXPERIMENTAL` (or explicitly marks a historical manifest legacy experimental).
+7. Validates the numeric calibration threshold.
+8. Requires `model.safetensors`, `tokenizer.json` and `config.json` in the file inventory.
+9. Rejects unsafe manifest paths and symlinked/missing files.
+10. Computes SHA-256 of every listed file and checks equality.
+11. Rejects certain unsafe pickle-weight extensions in the directory (`.bin`, `.pt`, `.pkl`, `.pickle`).
+12. Validates the classifier label mapping: `0=NON_INJECTION` and `1=INJECTION`.
+13. Returns a typed `ArtifactManifest` describing the verified artifact.
+
+**Hash verification protects artifact identity**, not the accuracy of the learned classifier. A perfectly verified model may still have false positives or misses.
+
+### 23.4 Why the default manifest hash is fixed
+
+The public v0.2 `manifest.json` SHA-256 is:
+
+```text
+54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b
+```
+
+The selected `model.safetensors` SHA-256 is:
+
+```text
+0367a9d7b42f288a25d0d9f3c86d4b10b55b919652d504db535da28313b8f89a
+```
+
+Those are distinct hashes. The first signs off the manifest whose inventory lists the second, plus other files. Users should pin the **manifest** as the top-level artifact identity and let `verify_artifact` check each part.
+
+### 23.5 The public downloader's two-stage trust model
+
+`download_verified_model(repo_id, destination, revision="main", manifest_sha256=REVIEWED_V3_MANIFEST_SHA256)` in `classifiers/download.py` does:
+
+1. Validate public Hugging Face `username/model` repository identifier.
+2. Reject an invalid/unsafe revision or malformed expected digest.
+3. Refuse to write into an existing destination.
+4. Require the optional `huggingface_hub` client; ordinary runtime does not need it.
+5. Create a same-parent private temporary staging directory.
+6. Download **only** `manifest.json` first, using `token=False` for public anonymous access.
+7. Enforce a manifest size bound and compare its exact bytes to the pinned SHA-256.
+8. Parse the manifest's bounded file inventory and validate safe flat filenames and digest shapes.
+9. Download only the named approved files from that Hub revision.
+10. Call `verify_artifact` to hash and validate the full staged directory.
+11. Remove the staging Hub cache.
+12. Refuse installation if the target appeared meanwhile.
+13. Rename the verified staging directory into the requested destination.
+14. Remove temporary leftovers on failures.
+
+This is an **explicit opt-in acquisition step**, not something the model or scanned text may trigger at runtime.
+
+### 23.6 Why the destination is not overwritten
+
+An existing model directory may be in use by a running server or represent a different pinned release. Silently overwriting it could corrupt inference mid-request or upgrade users to unreviewed weights. The downloader forces the user/operator to pick a new directory. They can switch `KJNLAE_MODEL_DIR`/hash deliberately only after verification.
+
+### 23.7 Offline operation after download
+
+Once the artifact is local, `LocalClassifier` loads `AutoTokenizer` and `AutoModelForSequenceClassification` with `local_files_only=True`. No Hugging Face call occurs during a normal scan. Users need no Hugging Face token for public downloads or offline inference; the maintainer's personal `hf auth login` is only needed for *publishing* to the Hub.
+
+### 23.8 Uploading the model is a separate, controlled workflow
+
+`scripts/publish_model.py` stages exactly the manifest-listed files, a manifest and a prepared model card from `docs/model-card-v0.2.md`. It first verifies the source artifact. Without `--publish`, it **only prints a SHA-256 inventory** and makes no network upload. With `--publish`, it uses Hugging Face authentication on the maintainer's machine, confirms the public destination and requires typing `PUBLISH` before creating a new repository/uploading.
+
+The release did **not** upload the private full training backup, raw training source datasets, age identity, GitHub private-backup chunks or cloud workspace. Such material has distinct privacy/licensing/reproducibility considerations and should remain separately protected.
+
+### 23.9 Future version upgrade path
+
+If you fine-tune v0.3, it will almost certainly change `model.safetensors`, `manifest.json` and the expected hashes. Publish a new immutable model version or repository, write a fresh model card and evaluation report, update the consumer's version/hash configuration and test both the old and new download paths. The published v0.2 model should remain accessible for reproducibility.
+
+### 23.10 Public model caveats
+
+The Hub's `text-classification` metadata describes the model architecture but does **not** reproduce kjnlae's full preprocessing, multiple windows, calibrated threshold and action/output controls. Testing with a default Hugging Face pipeline is **not equivalent** to running the full kjnlae gateway.
+
+## 24. Source-level real fine-tuning mechanics
+
+This section explains the core ML script more closely, in the spirit of a line-by-line reference without copying the whole source.
+
+### 24.1 `FitConfig` guards bounded CPU work
+
+The dataclass specifies `base_dir`, `train_path`, `validation_path`, `output_dir` and hyperparameters. Important defaults include `seed=42`, `max_tokens=128`, `batch_size=2`, `learning_rate=2e-5` and a bounded deadline, with current CLI allowing 2 epochs and a specified deadline up to its limit. The constructor validates these values rather than letting arbitrary training requests allocate unlimited work.
+
+### 24.2 `validate_partitions` and hashing
+
+Before training, `fit` reads and validates TRAIN and VALIDATION partitions and their disjointness. Input hashes are computed to preserve traceability. The training process does not secretly reuse the held-out test to select the best epoch. Downstream reports include counts/hashes to show which prepared input was used.
+
+### 24.3 Pinned model load with a new head
+
+`_worker` sets a random seed, loads `AutoTokenizer` and `AutoConfig` from the *local* pinned base, and sets `num_labels=2` and matching `id2label/label2id` maps. `AutoModelForSequenceClassification` loads the base encoder (trusting no remote code, using safetensors) and creates the task-specific classification head.
+
+The script saves an `initial-control` directory **before any updates**. This matters because the project can then compare the final trained weights against the original untrained classifier head rather than accidentally claiming a base language model was already a prompt-injection detector.
+
+### 24.4 Weighted loss and optimization
+
+The training set has more benign examples than attack examples. `class_weights` computes weights for the two labels; training uses `torch.nn.CrossEntropyLoss(weight=...)`. Without discussing the exact derived weights, the principle is to avoid a naive training objective that strongly favors the majority class.
+
+Every batch runs the usual supervised loop:
+
+```python
+optimizer.zero_grad(set_to_none=True)
+logits = model(**batch).logits
+loss = criterion(logits, labels)
+loss.backward()
+torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+optimizer.step()
+scheduler.step()
+```
+
+The actual code checks non-finite loss and gradient norms. AdamW applies learning-rate-controlled updates to trainable parameters, including encoder and head. The scheduler performs a warmup followed by decay.
+
+### 24.5 Batch construction and truncation
+
+Training builds `Source: ...\nContent:\n...` text for each labeled row. It tokenizes with `max_length=128`, `truncation=True` and `padding=True`. That training representation differs from inference's overlapping windows on long documents: training rows are short, while runtime scans may cover longer contents in multiple windows. This distribution difference itself can contribute to imperfect generalization.
+
+### 24.6 Shuffling and reproducibility
+
+A seeded `torch.Generator` supplies a randomized order each epoch. The seed, base revision, data hashes and hyperparameters are recorded. This supports *reproducibility of the particular pipeline*; exact bitwise results can still depend on library versions, environment, CPU behavior and model/checkpoint serialization.
+
+### 24.7 Validation-only selection
+
+After each epoch the model enters evaluation mode. It scores each VALIDATION row, computes class probabilities and predicts using 0.5 for **checkpoint selection**. The code records validation F1 and mean loss, saves the checkpoint if F1 improved (or equal F1 with lower loss), and uses a patience counter to stop after consecutive non-improvements.
+
+**Checkpoint selection threshold 0.5** is distinct from the **later calibrated runtime threshold 0.025...**. The former chooses weights without peeking at the held-out test; the latter maps scores from the selected weights to an operational prediction rule.
+
+### 24.8 Deadline and failed-run semantics
+
+The worker checks available time before expensive checkpointing and reports `INCOMPLETE` if training cannot safely finish. The documented first follow-up run with a 300-second budget did not finish; it was not promoted. A later bounded run with sufficient time completed 924 steps and selected epoch 1.
+
+This distinction prevents a partial or timeout artifact from being misrepresented as a successful trained model. Resource probes and deadlines protect the environment, but a different user's CPU/RAM may still require a different training budget.
+
+### 24.9 Two competing weight digests
+
+The `initial-control` weight digest differs from the `best` selected trained-weight digest. `fit.py` explicitly rejects a run where these hashes are equal because that would fail to demonstrate real training updates. This is stronger evidence of genuine fine-tuning than simply printing "trained successfully."
+
+### 24.10 Evaluation control and threshold
+
+`evaluate_and_promote` compares the initial-control classifier and the fine-tuned best checkpoint. It scores CALIBRATION examples for threshold selection and HELD_OUT_TEST examples for reporting. It emits an evaluation JSON with performance metrics, score records and mean inference timing; then creates a manifest listing file hashes, trained steps, base revision, label map, split hashes and calibrated threshold.
+
+### 24.11 The selected release metadata
+
+The reviewed public checkpoint records:
+
+| Item | Value | Why it matters |
+|---|---|---|
+| Base | `distilbert/distilbert-base-uncased` | Architecture/pretraining starting point |
+| Base revision | `12040accade4e8a0f71eabdb258fecc2e7e948be` | Reproducible upstream pin |
+| TRAIN rows | 924 | Fine-tuning examples |
+| Benign / injection | 639 / 285 | Class balance |
+| VALIDATION | 12 | Checkpoint selection |
+| CALIBRATION | 12 | Threshold selection |
+| HELD_OUT_TEST | 116 | Held-out model evaluation |
+| Total optimizer steps | 924 | Two-epoch attempted/finished work |
+| Selected checkpoint | Epoch 1, **462 steps** | Actual distributed weights |
+| CPU wall time | ~351.13 seconds | Observed specific training run |
+| Runtime threshold | `0.025134501978754997` | Operational cutoff for *these* weights |
+| Quality | `EXPERIMENTAL` | Not production-ready |
+| Manifest SHA-256 | `54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b` | Public artifact identity |
+
+### 24.12 Why v0.3 should not simply fine-tune forever
+
+More epochs may overfit a small corpus. More repeated/synthetic examples can shift model behavior toward particular source categories. A bigger encoder can add latency and memory cost. A model can appear stronger on the familiar 50-case set while becoming weaker on a held-out external distribution. Future experiments need independently gathered benign and attack examples, clean split separation, explicit acceptance thresholds, and the same checks for false negatives *and* false positives. The next model is a new experiment; it must not retroactively change measured v0.2 claims.
+
