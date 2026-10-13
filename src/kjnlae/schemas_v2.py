@@ -1,0 +1,55 @@
+"""Model-only inspection contracts. Request JSON conveys content, never authority."""
+
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from kjnlae.schemas import Decision, Source
+
+DetectionStatus = Literal["NO_EVIDENCE_FOUND", "MALICIOUS_INDICATORS", "INCOMPLETE"]
+ModelStatus = Literal["AVAILABLE", "MISSING", "UNAVAILABLE", "CORRUPTED", "TIMED_OUT", "ERROR"]
+
+
+class StrictV2(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class ContentEnvelope(StrictV2):
+    text: str = Field(min_length=1, max_length=32768)
+    source: Source = "user"
+    origin_id: str | None = Field(default=None, max_length=256)
+
+
+class InspectionRequestV2(StrictV2):
+    text: str = Field(min_length=1, max_length=32768)
+    source: Source = "user"
+    context_ref: str | None = Field(default=None, max_length=128)
+
+
+class WindowEvidence(StrictV2):
+    view: str
+    start: int = Field(ge=0)
+    end: int = Field(ge=0)
+    score: float = Field(ge=0, le=1)
+    model_hash: str
+
+
+class InspectionResultV2(StrictV2):
+    detection_status: DetectionStatus
+    policy_decision: Decision
+    model_status: ModelStatus
+    evidence: tuple[WindowEvidence, ...] = ()
+    coverage: dict[str, int] = Field(default_factory=dict)
+    reason_codes: tuple[str, ...] = ()
+    policy_id: str = "model-only-v2"
+    latency_ms: float = Field(default=0, ge=0)
+    inspection_complete: bool
+    model_hash: str | None = None
+
+    @model_validator(mode="after")
+    def incomplete_is_not_clear(self) -> "InspectionResultV2":
+        if self.detection_status == "INCOMPLETE" and self.policy_decision in {"ALLOW", "WARN"}:
+            raise ValueError("Incomplete inspection requires review or block")
+        if not self.inspection_complete and self.detection_status != "INCOMPLETE":
+            raise ValueError("Partial inspection must report INCOMPLETE")
+        return self
