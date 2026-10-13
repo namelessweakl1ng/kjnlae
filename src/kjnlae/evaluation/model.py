@@ -175,10 +175,16 @@ def evaluate_and_promote(fit_dir: Path, prepared_dir: Path) -> dict[str, Any]:
     manifest = {
         "artifact_version": "kjnlae-v0.2-local-1",
         "base_revision": BASE_REVISION,
-        "trained_steps": fit_report["steps"],
+        "trained_steps": fit_report["best_epoch"]
+        * (
+            (fit_report["train_count"] + fit_report["config"]["batch_size"] - 1)
+            // fit_report["config"]["batch_size"]
+        ),
+        "total_optimizer_steps": fit_report["steps"],
         "best_epoch": fit_report["best_epoch"],
         "seed": fit_report["config"]["seed"],
-        "approved": True,
+        "evaluated": True,
+        "quality_status": "EXPERIMENTAL",
         "threshold": trained_threshold,
         "label_mapping": {"0": "NON_INJECTION", "1": "INJECTION"},
         "train_sha256": fit_report["train_sha256"],

@@ -14,7 +14,7 @@ services:
       KJNLAE_MODEL_HASH: ${KJNLAE_MODEL_HASH:-}
     volumes:
       - audit:/app/var
-      - ${KJNLAE_MODEL_DIR_HOST:-./var/models/full-v0.2-v3-600/best}:/app/model:ro
+      - ${KJNLAE_MODEL_DIR_HOST:-./var/models/full-v0.2-v3-reviewed}:/app/model:ro
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777

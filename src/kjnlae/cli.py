@@ -116,6 +116,8 @@ def main(argv: list[str] | None = None) -> None:
         else:
             result = evaluate_and_promote(args.fit, args.prepared)
         print(json.dumps(result, default=lambda x: x.__dict__, indent=2))
+        if args.train_command in {"fit", "probe"} and result["status"] == "INCOMPLETE":
+            raise SystemExit(1)
         return
     if args.command == "scan" and args.mode is not None:
         parser.error("--mode was removed in v0.2; configure KJNLAE_MODEL_DIR and KJNLAE_MODEL_HASH")

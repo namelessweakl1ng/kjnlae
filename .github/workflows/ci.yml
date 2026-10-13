@@ -44,6 +44,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker compose up --build -d --wait --wait-timeout 180
+      # Git checkout has no private weights: assert explicit degraded behavior.
+      # Real-weight readiness and inference are required by the local release gate.
       - run: python scripts/smoke.py
       - if: always()
         run: docker compose logs && docker compose down

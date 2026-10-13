@@ -7,7 +7,7 @@ Production requires `KJNLAE_ENV=production`, a random `KJNLAE_API_KEY` of at lea
 For local Compose, set in an uncommitted `.env`:
 
 ```text
-KJNLAE_MODEL_DIR_HOST=./var/models/full-v0.2-v3-600/best
+KJNLAE_MODEL_DIR_HOST=./var/models/full-v0.2-v3-reviewed
 KJNLAE_MODEL_HASH=<sha256-of-manifest.json>
 ```
 

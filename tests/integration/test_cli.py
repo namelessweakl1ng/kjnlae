@@ -3,7 +3,35 @@ import os
 import subprocess
 import sys
 
-from kjnlae.cli import _parser
+import pytest
+
+from kjnlae.cli import _parser, main
+
+
+def test_cli_fit_incomplete_is_failure(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+):
+    monkeypatch.setattr("kjnlae.cli.fit", lambda _cfg: {"status": "INCOMPLETE"})
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "kjnlae",
+            "train",
+            "fit",
+            "--base",
+            "base",
+            "--train",
+            "train.jsonl",
+            "--validation",
+            "validation.jsonl",
+            "--output",
+            "out",
+        ],
+    )
+    with pytest.raises(SystemExit, match="1"):
+        main()
+    assert '"status": "INCOMPLETE"' in capsys.readouterr().out
 
 
 def test_cli_training_deadline_is_explicitly_configurable():

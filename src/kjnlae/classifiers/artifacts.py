@@ -18,7 +18,7 @@ class ArtifactManifest:
     base_revision: str
     trained_steps: int
     threshold: float
-    approved: bool
+    quality_status: str
 
 
 def _hash(path: Path) -> str:
@@ -43,8 +43,15 @@ def verify_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
         raise ValueError("Unexpected base model revision")
     if not isinstance(raw.get("trained_steps"), int) or raw["trained_steps"] <= 0:
         raise ValueError("Artifact is not trained")
-    if not raw.get("approved"):
-        raise ValueError("Model artifact has not passed promotion")
+    if raw.get("evaluated") is True:
+        quality_status = raw.get("quality_status")
+        if quality_status != "EXPERIMENTAL":
+            raise ValueError("Invalid or missing model quality status")
+    elif raw.get("approved") is True:
+        # Historical manifests used approval for completed evaluation, not a quality gate.
+        quality_status = "LEGACY_EXPERIMENTAL"
+    else:
+        raise ValueError("Model artifact has not completed evaluation")
     threshold = raw.get("threshold")
     if not isinstance(threshold, (int, float)) or not 0 <= threshold <= 1:
         raise ValueError("Invalid calibration threshold")
@@ -75,7 +82,7 @@ def verify_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
         BASE_REVISION,
         raw["trained_steps"],
         float(threshold),
-        True,
+        quality_status,
     )
 
 
