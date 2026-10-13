@@ -28,6 +28,26 @@ flowchart LR
 
 The scanner's score is a model output, **not** a calibrated attack-success probability. Input classification, authorization enforcement and observed attack prevention are distinct measurements. Retrieved content never supplies trusted identity or approval.
 
+## Public model distribution (experimental)
+
+**Source code alone cannot classify prompt injections.** The reviewed fine-tuned weights are a separate ~257 MiB artifact, and the scanner reports `INCOMPLETE` without them. A safe public Hugging Face model publication is being prepared; do not assume the model is uploaded merely because this repository is public.
+
+Once published, install the optional Hub client and download the reviewed weights **explicitly**, with checksum verification, from its published repository:
+
+```bash
+python -m pip install 'huggingface_hub>=0.30,<1'
+kjnlae model download \
+  --repo YOUR_HF_USERNAME/kjnlae-distilbert-v0.2 \
+  --revision PUBLISHED_HF_COMMIT_SHA
+export KJNLAE_MODEL_DIR="$PWD/var/models/full-v0.2-v3-reviewed"
+export KJNLAE_MODEL_HASH="54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b"
+kjnlae doctor
+```
+
+Replace placeholders only after the publisher confirms a public upload and a fresh anonymous download smoke test. No normal scan downloads models or calls external inference services. This model remains experimental: substantial benign false positives, possible misses, and **no production protection claims**. The action/authorization and output-release controls must remain independent.
+
+See [public model publishing, checksum-pinned download and verification](docs/public-model-release.md) and [the model card](docs/model-card-v0.2.md).
+
 ## Fedora installation and local model setup
 
 Requirements: Fedora with Python 3.12+, four CPU cores and at least 8 GiB available RAM recommended for this trained DistilBERT, Node.js 22+ for the dashboard, and enough storage for the base and trained artifacts. The measured cloud training session had 32 GiB RAM; smaller machines have not been validated for full training. No GPU, paid API or hosted LLM is required.
