@@ -33,5 +33,5 @@ select = ["E", "F", "I", "UP", "B"]
 python_version = "3.12"
 strict = true
 [[tool.mypy.overrides]]
-module = ["transformers.*", "torch.*"]
+module = ["transformers.*", "torch.*", "huggingface_hub", "huggingface_hub.*", "pyarrow", "pyarrow.*"]
 ignore_missing_imports = true
