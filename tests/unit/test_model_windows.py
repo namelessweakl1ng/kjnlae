@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from kjnlae.classifiers.local import LocalClassifier, LocalModelConfig, build_windows
+from kjnlae.classifiers.local import LocalClassifier, LocalModelConfig, build_windows, window_ranges
 from kjnlae.detection.preprocessing import InspectionView
 
 
@@ -30,3 +30,10 @@ def test_missing_trained_artifact_is_explicit(tmp_path: Path) -> None:
     result = classifier.classify_views([InspectionView("original", "hello", ((0, 1),) * 5)], "user")
     assert result.status == "MISSING"
     assert result.inspection_complete is False
+
+
+def test_long_text_windows_cover_final_token() -> None:
+    ranges = window_ranges(300, 128, 32)
+    assert ranges[0] == (0, 128)
+    assert ranges[-1][1] == 300
+    assert set().union(*(set(range(start, end)) for start, end in ranges)) == set(range(300))

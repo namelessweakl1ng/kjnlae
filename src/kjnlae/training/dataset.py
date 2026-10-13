@@ -19,8 +19,7 @@ PROVENANCE = {
     "original": {"license": "MIT", "origin": "kjnlae fictional authored fixtures"},
     "deepset-4f61ecb": {
         "license": (
-            "Apache-2.0 / CC-BY-4.0 metadata discrepancy; "
-            "both attribution obligations observed"
+            "Apache-2.0 / CC-BY-4.0 metadata discrepancy; both attribution obligations observed"
         ),
         "origin": "deepset/prompt-injections",
         "revision": "4f61ecb038e9c3fb77e21034b22511b523772cdd",
@@ -32,6 +31,11 @@ PROVENANCE = {
         "origin": "microsoft/BIPIA benchmark/text_attack_train.json",
         "revision": "a004b69ec0dd446e0afd461d98cb5e96e120a5d0",
     },
+}
+
+DEEPSET_HASHES = {
+    "TRAIN": "2e10bc7ab30f542c97e4e83e2a5683000b5057d25ec10908784c631d44124c04",
+    "HELD_OUT_TEST": "39ac797cabc157eeed58435a08593b2952bb6cb16fc394a2d383f447cc7b246e",
 }
 
 _BIPIA_ACTIVE_CATEGORIES = frozenset(
@@ -94,6 +98,32 @@ def import_bipia_attacks(source: Path, target: Path, repository_commit: str) -> 
                 provenance_id="bipia-a004b69",
             )
             rows.append(row.model_dump_json() + "\n")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("".join(rows))
+    return len(rows)
+
+
+def import_deepset(source: Path, target: Path, split: Split) -> int:
+    """Import pinned public examples while honoring both recorded license notices."""
+    if (
+        split not in DEEPSET_HASHES
+        or hashlib.sha256(source.read_bytes()).hexdigest() != (DEEPSET_HASHES[split])
+    ):
+        raise ValueError("Deepset source SHA256 differs from reviewed pinned parquet")
+    import pyarrow.parquet as parquet  # type: ignore[import-untyped]
+
+    rows: list[str] = []
+    for index, item in enumerate(parquet.read_table(source).to_pylist()):
+        row = TrainingExample(
+            id=f"deepset-{split.lower()}-{index:04d}",
+            text=item["text"],
+            source="user",
+            label=item["label"],
+            split=split,
+            family_id=f"deepset-{split.lower()}-{index:04d}",
+            provenance_id="deepset-4f61ecb",
+        )
+        rows.append(row.model_dump_json() + "\n")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("".join(rows))
     return len(rows)

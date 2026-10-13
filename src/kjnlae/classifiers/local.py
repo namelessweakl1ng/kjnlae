@@ -233,7 +233,7 @@ class LocalInference:
 class LocalModelConfig:
     model_dir: Path
     manifest_hash: str
-    token_limit: int = 256
+    token_limit: int = 128
     overlap: int = 32
     max_windows: int = 128
     batch_size: int = 8
@@ -253,6 +253,20 @@ class LocalModelConfig:
             raise ValueError("Invalid local model configuration")
 
 
+def window_ranges(length: int, width: int, overlap: int) -> tuple[tuple[int, int], ...]:
+    if length < 0 or width <= 0 or overlap < 0 or overlap >= width:
+        raise ValueError("Invalid window bounds")
+    if length == 0:
+        return ((0, 0),)
+    spans: list[tuple[int, int]] = []
+    for start in range(0, length, width - overlap):
+        end = min(length, start + width)
+        spans.append((start, end))
+        if end == length:
+            break
+    return tuple(spans)
+
+
 def build_windows(
     views: Sequence[InspectionView],
     tokenized: Sequence[Sequence[tuple[int, int]]],
@@ -267,8 +281,7 @@ def build_windows(
         if len(offsets) == 0:
             result.append(ModelWindow(view.name, (0, 0)))
             continue
-        for start in range(0, len(offsets), width - overlap):
-            end = min(len(offsets), start + width)
+        for start, end in window_ranges(len(offsets), width, overlap):
             first, last = offsets[start][0], offsets[end - 1][1]
             if first < 0 or last > len(view.mapping) or first >= last:
                 raise ValueError("Invalid token-to-source mapping")
@@ -277,8 +290,6 @@ def build_windows(
             )
             if len(result) > max_windows:
                 return None
-            if end == len(offsets):
-                break
     return tuple(result)
 
 
@@ -333,11 +344,8 @@ def _local_worker(conn: Connection, cfg: LocalModelConfig) -> None:
                 if not ids:
                     batches.append(prefix_ids)
                     continue
-                for start in range(0, len(ids), width - cfg.overlap):
-                    end = min(len(ids), start + width)
+                for start, end in window_ranges(len(ids), width, cfg.overlap):
                     batches.append(prefix_ids + ids[start:end])
-                    if end == len(ids):
-                        break
             scores: list[float] = []
             for pos in range(0, len(batches), cfg.batch_size):
                 ready = [
