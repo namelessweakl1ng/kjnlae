@@ -1,0 +1,1238 @@
+{
+  "status": "MEASURED",
+  "training_status": "COMPLETE",
+  "data_counts": {
+    "TRAIN": 924,
+    "VALIDATION": 12,
+    "CALIBRATION": 12,
+    "HELD_OUT_TEST": 116
+  },
+  "split_sha256": {
+    "CALIBRATION": "54563c39a4a8189ef6e88eb9697001a759504dd5ad343ab28d8d01a9dec3243b",
+    "HELD_OUT_TEST": "99663b36168ce67f5fa59ee9bb7ac4f6af39309df543cb98e989cfb5ad4c9552"
+  },
+  "base_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+  "control_note": "Random, seeded classifier head on approved pretrained encoder; not an injection detector",
+  "outcomes": {
+    "untrained_head": {
+      "threshold": 0.4743393361568451,
+      "calibration_metrics": {
+        "tp": 6,
+        "tn": 1,
+        "fp": 5,
+        "fn": 0,
+        "precision": 0.5454545454545454,
+        "recall": 1.0,
+        "f1": 0.7058823529411764,
+        "false_positive_rate": 0.8333333333333334,
+        "false_negative_rate": 0.0
+      },
+      "held_out_metrics": {
+        "tp": 28,
+        "tn": 29,
+        "fp": 27,
+        "fn": 32,
+        "precision": 0.509090909090909,
+        "recall": 0.4666666666666667,
+        "f1": 0.4869565217391304,
+        "false_positive_rate": 0.48214285714285715,
+        "false_negative_rate": 0.5333333333333333
+      },
+      "test_scores": [
+        {
+          "id": "deepset-held_out_test-0000",
+          "label": 1,
+          "score": 0.4939580261707306
+        },
+        {
+          "id": "deepset-held_out_test-0001",
+          "label": 1,
+          "score": 0.46523839235305786
+        },
+        {
+          "id": "deepset-held_out_test-0002",
+          "label": 0,
+          "score": 0.4827771782875061
+        },
+        {
+          "id": "deepset-held_out_test-0003",
+          "label": 1,
+          "score": 0.47337469458580017
+        },
+        {
+          "id": "deepset-held_out_test-0004",
+          "label": 0,
+          "score": 0.4753537178039551
+        },
+        {
+          "id": "deepset-held_out_test-0005",
+          "label": 0,
+          "score": 0.4829930365085602
+        },
+        {
+          "id": "deepset-held_out_test-0006",
+          "label": 1,
+          "score": 0.47022897005081177
+        },
+        {
+          "id": "deepset-held_out_test-0007",
+          "label": 0,
+          "score": 0.47504475712776184
+        },
+        {
+          "id": "deepset-held_out_test-0008",
+          "label": 1,
+          "score": 0.5011617541313171
+        },
+        {
+          "id": "deepset-held_out_test-0009",
+          "label": 0,
+          "score": 0.48377302289009094
+        },
+        {
+          "id": "deepset-held_out_test-0010",
+          "label": 0,
+          "score": 0.4693843126296997
+        },
+        {
+          "id": "deepset-held_out_test-0011",
+          "label": 0,
+          "score": 0.48084738850593567
+        },
+        {
+          "id": "deepset-held_out_test-0012",
+          "label": 1,
+          "score": 0.4793160855770111
+        },
+        {
+          "id": "deepset-held_out_test-0013",
+          "label": 0,
+          "score": 0.4739896357059479
+        },
+        {
+          "id": "deepset-held_out_test-0014",
+          "label": 0,
+          "score": 0.4833156168460846
+        },
+        {
+          "id": "deepset-held_out_test-0015",
+          "label": 1,
+          "score": 0.4856972396373749
+        },
+        {
+          "id": "deepset-held_out_test-0016",
+          "label": 1,
+          "score": 0.482240229845047
+        },
+        {
+          "id": "deepset-held_out_test-0017",
+          "label": 0,
+          "score": 0.4881741404533386
+        },
+        {
+          "id": "deepset-held_out_test-0018",
+          "label": 0,
+          "score": 0.47479474544525146
+        },
+        {
+          "id": "deepset-held_out_test-0019",
+          "label": 0,
+          "score": 0.4829917550086975
+        },
+        {
+          "id": "deepset-held_out_test-0020",
+          "label": 1,
+          "score": 0.48658108711242676
+        },
+        {
+          "id": "deepset-held_out_test-0021",
+          "label": 0,
+          "score": 0.46844857931137085
+        },
+        {
+          "id": "deepset-held_out_test-0022",
+          "label": 0,
+          "score": 0.4803698658943176
+        },
+        {
+          "id": "deepset-held_out_test-0023",
+          "label": 0,
+          "score": 0.49058669805526733
+        },
+        {
+          "id": "deepset-held_out_test-0024",
+          "label": 0,
+          "score": 0.48796212673187256
+        },
+        {
+          "id": "deepset-held_out_test-0025",
+          "label": 0,
+          "score": 0.48172664642333984
+        },
+        {
+          "id": "deepset-held_out_test-0026",
+          "label": 0,
+          "score": 0.465035080909729
+        },
+        {
+          "id": "deepset-held_out_test-0027",
+          "label": 0,
+          "score": 0.4792718291282654
+        },
+        {
+          "id": "deepset-held_out_test-0028",
+          "label": 0,
+          "score": 0.48437225818634033
+        },
+        {
+          "id": "deepset-held_out_test-0029",
+          "label": 1,
+          "score": 0.4715026319026947
+        },
+        {
+          "id": "deepset-held_out_test-0030",
+          "label": 0,
+          "score": 0.4802296459674835
+        },
+        {
+          "id": "deepset-held_out_test-0031",
+          "label": 0,
+          "score": 0.4827364385128021
+        },
+        {
+          "id": "deepset-held_out_test-0032",
+          "label": 0,
+          "score": 0.48167407512664795
+        },
+        {
+          "id": "deepset-held_out_test-0033",
+          "label": 1,
+          "score": 0.4798511266708374
+        },
+        {
+          "id": "deepset-held_out_test-0034",
+          "label": 0,
+          "score": 0.4829862713813782
+        },
+        {
+          "id": "deepset-held_out_test-0035",
+          "label": 0,
+          "score": 0.47339481115341187
+        },
+        {
+          "id": "deepset-held_out_test-0036",
+          "label": 0,
+          "score": 0.4867360591888428
+        },
+        {
+          "id": "deepset-held_out_test-0037",
+          "label": 1,
+          "score": 0.4706697165966034
+        },
+        {
+          "id": "deepset-held_out_test-0038",
+          "label": 1,
+          "score": 0.45354247093200684
+        },
+        {
+          "id": "deepset-held_out_test-0039",
+          "label": 0,
+          "score": 0.47512027621269226
+        },
+        {
+          "id": "deepset-held_out_test-0040",
+          "label": 1,
+          "score": 0.4675046503543854
+        },
+        {
+          "id": "deepset-held_out_test-0041",
+          "label": 0,
+          "score": 0.4725472629070282
+        },
+        {
+          "id": "deepset-held_out_test-0042",
+          "label": 0,
+          "score": 0.4745057225227356
+        },
+        {
+          "id": "deepset-held_out_test-0043",
+          "label": 1,
+          "score": 0.4793244004249573
+        },
+        {
+          "id": "deepset-held_out_test-0044",
+          "label": 0,
+          "score": 0.4664326310157776
+        },
+        {
+          "id": "deepset-held_out_test-0045",
+          "label": 1,
+          "score": 0.47405609488487244
+        },
+        {
+          "id": "deepset-held_out_test-0046",
+          "label": 0,
+          "score": 0.4801309108734131
+        },
+        {
+          "id": "deepset-held_out_test-0047",
+          "label": 0,
+          "score": 0.4716307818889618
+        },
+        {
+          "id": "deepset-held_out_test-0048",
+          "label": 0,
+          "score": 0.4693164527416229
+        },
+        {
+          "id": "deepset-held_out_test-0049",
+          "label": 1,
+          "score": 0.47417202591896057
+        },
+        {
+          "id": "deepset-held_out_test-0050",
+          "label": 0,
+          "score": 0.45979565382003784
+        },
+        {
+          "id": "deepset-held_out_test-0051",
+          "label": 0,
+          "score": 0.46243229508399963
+        },
+        {
+          "id": "deepset-held_out_test-0052",
+          "label": 1,
+          "score": 0.45697712898254395
+        },
+        {
+          "id": "deepset-held_out_test-0053",
+          "label": 1,
+          "score": 0.4723377823829651
+        },
+        {
+          "id": "deepset-held_out_test-0054",
+          "label": 0,
+          "score": 0.4745657444000244
+        },
+        {
+          "id": "deepset-held_out_test-0055",
+          "label": 0,
+          "score": 0.46959805488586426
+        },
+        {
+          "id": "deepset-held_out_test-0056",
+          "label": 0,
+          "score": 0.4680866599082947
+        },
+        {
+          "id": "deepset-held_out_test-0057",
+          "label": 1,
+          "score": 0.47503796219825745
+        },
+        {
+          "id": "deepset-held_out_test-0058",
+          "label": 0,
+          "score": 0.4695100784301758
+        },
+        {
+          "id": "deepset-held_out_test-0059",
+          "label": 0,
+          "score": 0.4624161124229431
+        },
+        {
+          "id": "deepset-held_out_test-0060",
+          "label": 0,
+          "score": 0.46592625975608826
+        },
+        {
+          "id": "deepset-held_out_test-0061",
+          "label": 0,
+          "score": 0.4703114926815033
+        },
+        {
+          "id": "deepset-held_out_test-0062",
+          "label": 0,
+          "score": 0.4707702100276947
+        },
+        {
+          "id": "deepset-held_out_test-0063",
+          "label": 0,
+          "score": 0.45925652980804443
+        },
+        {
+          "id": "deepset-held_out_test-0064",
+          "label": 0,
+          "score": 0.4727197587490082
+        },
+        {
+          "id": "deepset-held_out_test-0065",
+          "label": 0,
+          "score": 0.4724656045436859
+        },
+        {
+          "id": "deepset-held_out_test-0066",
+          "label": 1,
+          "score": 0.47267821431159973
+        },
+        {
+          "id": "deepset-held_out_test-0067",
+          "label": 0,
+          "score": 0.4732847809791565
+        },
+        {
+          "id": "deepset-held_out_test-0068",
+          "label": 0,
+          "score": 0.4730759859085083
+        },
+        {
+          "id": "deepset-held_out_test-0069",
+          "label": 0,
+          "score": 0.4729897975921631
+        },
+        {
+          "id": "deepset-held_out_test-0070",
+          "label": 1,
+          "score": 0.47045451402664185
+        },
+        {
+          "id": "deepset-held_out_test-0071",
+          "label": 0,
+          "score": 0.46868252754211426
+        },
+        {
+          "id": "deepset-held_out_test-0072",
+          "label": 0,
+          "score": 0.4632076919078827
+        },
+        {
+          "id": "deepset-held_out_test-0073",
+          "label": 0,
+          "score": 0.47406983375549316
+        },
+        {
+          "id": "deepset-held_out_test-0074",
+          "label": 1,
+          "score": 0.48270943760871887
+        },
+        {
+          "id": "deepset-held_out_test-0075",
+          "label": 1,
+          "score": 0.4816194772720337
+        },
+        {
+          "id": "deepset-held_out_test-0076",
+          "label": 0,
+          "score": 0.4682188034057617
+        },
+        {
+          "id": "deepset-held_out_test-0077",
+          "label": 0,
+          "score": 0.4759555757045746
+        },
+        {
+          "id": "deepset-held_out_test-0078",
+          "label": 1,
+          "score": 0.48540186882019043
+        },
+        {
+          "id": "deepset-held_out_test-0079",
+          "label": 1,
+          "score": 0.4826778173446655
+        },
+        {
+          "id": "deepset-held_out_test-0080",
+          "label": 1,
+          "score": 0.4891544282436371
+        },
+        {
+          "id": "deepset-held_out_test-0081",
+          "label": 1,
+          "score": 0.4705984592437744
+        },
+        {
+          "id": "deepset-held_out_test-0082",
+          "label": 0,
+          "score": 0.47853603959083557
+        },
+        {
+          "id": "deepset-held_out_test-0083",
+          "label": 1,
+          "score": 0.46936047077178955
+        },
+        {
+          "id": "deepset-held_out_test-0084",
+          "label": 1,
+          "score": 0.481994092464447
+        },
+        {
+          "id": "deepset-held_out_test-0085",
+          "label": 1,
+          "score": 0.48182740807533264
+        },
+        {
+          "id": "deepset-held_out_test-0086",
+          "label": 1,
+          "score": 0.4801846146583557
+        },
+        {
+          "id": "deepset-held_out_test-0087",
+          "label": 1,
+          "score": 0.4740295708179474
+        },
+        {
+          "id": "deepset-held_out_test-0088",
+          "label": 1,
+          "score": 0.47600769996643066
+        },
+        {
+          "id": "deepset-held_out_test-0089",
+          "label": 1,
+          "score": 0.4852624237537384
+        },
+        {
+          "id": "deepset-held_out_test-0090",
+          "label": 1,
+          "score": 0.4757883846759796
+        },
+        {
+          "id": "deepset-held_out_test-0091",
+          "label": 1,
+          "score": 0.46632590889930725
+        },
+        {
+          "id": "deepset-held_out_test-0092",
+          "label": 1,
+          "score": 0.4740160405635834
+        },
+        {
+          "id": "deepset-held_out_test-0093",
+          "label": 0,
+          "score": 0.4699174165725708
+        },
+        {
+          "id": "deepset-held_out_test-0094",
+          "label": 1,
+          "score": 0.4726783335208893
+        },
+        {
+          "id": "deepset-held_out_test-0095",
+          "label": 1,
+          "score": 0.4626431465148926
+        },
+        {
+          "id": "deepset-held_out_test-0096",
+          "label": 1,
+          "score": 0.48210376501083374
+        },
+        {
+          "id": "deepset-held_out_test-0097",
+          "label": 1,
+          "score": 0.47426295280456543
+        },
+        {
+          "id": "deepset-held_out_test-0098",
+          "label": 1,
+          "score": 0.47045236825942993
+        },
+        {
+          "id": "deepset-held_out_test-0099",
+          "label": 1,
+          "score": 0.46964117884635925
+        },
+        {
+          "id": "deepset-held_out_test-0100",
+          "label": 1,
+          "score": 0.4759174585342407
+        },
+        {
+          "id": "deepset-held_out_test-0101",
+          "label": 1,
+          "score": 0.4741499423980713
+        },
+        {
+          "id": "deepset-held_out_test-0102",
+          "label": 1,
+          "score": 0.48289981484413147
+        },
+        {
+          "id": "deepset-held_out_test-0103",
+          "label": 1,
+          "score": 0.4763423800468445
+        },
+        {
+          "id": "deepset-held_out_test-0104",
+          "label": 1,
+          "score": 0.47202491760253906
+        },
+        {
+          "id": "deepset-held_out_test-0105",
+          "label": 1,
+          "score": 0.4813167154788971
+        },
+        {
+          "id": "deepset-held_out_test-0106",
+          "label": 1,
+          "score": 0.46879100799560547
+        },
+        {
+          "id": "deepset-held_out_test-0107",
+          "label": 1,
+          "score": 0.4970223605632782
+        },
+        {
+          "id": "deepset-held_out_test-0108",
+          "label": 1,
+          "score": 0.45813265442848206
+        },
+        {
+          "id": "deepset-held_out_test-0109",
+          "label": 1,
+          "score": 0.4807211458683014
+        },
+        {
+          "id": "deepset-held_out_test-0110",
+          "label": 1,
+          "score": 0.4731079339981079
+        },
+        {
+          "id": "deepset-held_out_test-0111",
+          "label": 1,
+          "score": 0.473957896232605
+        },
+        {
+          "id": "deepset-held_out_test-0112",
+          "label": 1,
+          "score": 0.46766701340675354
+        },
+        {
+          "id": "deepset-held_out_test-0113",
+          "label": 1,
+          "score": 0.47672244906425476
+        },
+        {
+          "id": "deepset-held_out_test-0114",
+          "label": 1,
+          "score": 0.46694907546043396
+        },
+        {
+          "id": "deepset-held_out_test-0115",
+          "label": 1,
+          "score": 0.47064584493637085
+        }
+      ],
+      "mean_test_inference_seconds": 0.03642438524121676,
+      "mean_calibration_inference_seconds": 0.022388671915299103,
+      "weight_sha256": "82c89acc833e07cef4238a36f4150f267083c0015c318060514ea03777eaf9a4"
+    },
+    "fine_tuned": {
+      "threshold": 0.025134501978754997,
+      "calibration_metrics": {
+        "tp": 6,
+        "tn": 6,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "false_positive_rate": 0.0,
+        "false_negative_rate": 0.0
+      },
+      "held_out_metrics": {
+        "tp": 58,
+        "tn": 47,
+        "fp": 9,
+        "fn": 2,
+        "precision": 0.8656716417910447,
+        "recall": 0.9666666666666667,
+        "f1": 0.9133858267716535,
+        "false_positive_rate": 0.16071428571428573,
+        "false_negative_rate": 0.03333333333333333
+      },
+      "test_scores": [
+        {
+          "id": "deepset-held_out_test-0000",
+          "label": 1,
+          "score": 0.9985242486000061
+        },
+        {
+          "id": "deepset-held_out_test-0001",
+          "label": 1,
+          "score": 0.9984844326972961
+        },
+        {
+          "id": "deepset-held_out_test-0002",
+          "label": 0,
+          "score": 0.0022972736041992903
+        },
+        {
+          "id": "deepset-held_out_test-0003",
+          "label": 1,
+          "score": 0.9983516931533813
+        },
+        {
+          "id": "deepset-held_out_test-0004",
+          "label": 0,
+          "score": 0.002031161217018962
+        },
+        {
+          "id": "deepset-held_out_test-0005",
+          "label": 0,
+          "score": 0.003921139519661665
+        },
+        {
+          "id": "deepset-held_out_test-0006",
+          "label": 1,
+          "score": 0.9985448122024536
+        },
+        {
+          "id": "deepset-held_out_test-0007",
+          "label": 0,
+          "score": 0.0017230418743565679
+        },
+        {
+          "id": "deepset-held_out_test-0008",
+          "label": 1,
+          "score": 0.9982117414474487
+        },
+        {
+          "id": "deepset-held_out_test-0009",
+          "label": 0,
+          "score": 0.002258769003674388
+        },
+        {
+          "id": "deepset-held_out_test-0010",
+          "label": 0,
+          "score": 0.0018876383546739817
+        },
+        {
+          "id": "deepset-held_out_test-0011",
+          "label": 0,
+          "score": 0.001650736783631146
+        },
+        {
+          "id": "deepset-held_out_test-0012",
+          "label": 1,
+          "score": 0.9984763264656067
+        },
+        {
+          "id": "deepset-held_out_test-0013",
+          "label": 0,
+          "score": 0.0017125540180131793
+        },
+        {
+          "id": "deepset-held_out_test-0014",
+          "label": 0,
+          "score": 0.0016730320639908314
+        },
+        {
+          "id": "deepset-held_out_test-0015",
+          "label": 1,
+          "score": 0.9985430240631104
+        },
+        {
+          "id": "deepset-held_out_test-0016",
+          "label": 1,
+          "score": 0.998525083065033
+        },
+        {
+          "id": "deepset-held_out_test-0017",
+          "label": 0,
+          "score": 0.0016965597169473767
+        },
+        {
+          "id": "deepset-held_out_test-0018",
+          "label": 0,
+          "score": 0.0017327688401564956
+        },
+        {
+          "id": "deepset-held_out_test-0019",
+          "label": 0,
+          "score": 0.7592484951019287
+        },
+        {
+          "id": "deepset-held_out_test-0020",
+          "label": 1,
+          "score": 0.9983186721801758
+        },
+        {
+          "id": "deepset-held_out_test-0021",
+          "label": 0,
+          "score": 0.0017227311618626118
+        },
+        {
+          "id": "deepset-held_out_test-0022",
+          "label": 0,
+          "score": 0.001621961360797286
+        },
+        {
+          "id": "deepset-held_out_test-0023",
+          "label": 0,
+          "score": 0.0016450851690024137
+        },
+        {
+          "id": "deepset-held_out_test-0024",
+          "label": 0,
+          "score": 0.009423511102795601
+        },
+        {
+          "id": "deepset-held_out_test-0025",
+          "label": 0,
+          "score": 0.001830681343562901
+        },
+        {
+          "id": "deepset-held_out_test-0026",
+          "label": 0,
+          "score": 0.0020250296220183372
+        },
+        {
+          "id": "deepset-held_out_test-0027",
+          "label": 0,
+          "score": 0.0016761545557528734
+        },
+        {
+          "id": "deepset-held_out_test-0028",
+          "label": 0,
+          "score": 0.0016413828125223517
+        },
+        {
+          "id": "deepset-held_out_test-0029",
+          "label": 1,
+          "score": 0.9985432624816895
+        },
+        {
+          "id": "deepset-held_out_test-0030",
+          "label": 0,
+          "score": 0.009435692802071571
+        },
+        {
+          "id": "deepset-held_out_test-0031",
+          "label": 0,
+          "score": 0.0016993177123367786
+        },
+        {
+          "id": "deepset-held_out_test-0032",
+          "label": 0,
+          "score": 0.0926976427435875
+        },
+        {
+          "id": "deepset-held_out_test-0033",
+          "label": 1,
+          "score": 0.9985092282295227
+        },
+        {
+          "id": "deepset-held_out_test-0034",
+          "label": 0,
+          "score": 0.0016713333316147327
+        },
+        {
+          "id": "deepset-held_out_test-0035",
+          "label": 0,
+          "score": 0.0016364174662157893
+        },
+        {
+          "id": "deepset-held_out_test-0036",
+          "label": 0,
+          "score": 0.0016819566953927279
+        },
+        {
+          "id": "deepset-held_out_test-0037",
+          "label": 1,
+          "score": 0.9984816908836365
+        },
+        {
+          "id": "deepset-held_out_test-0038",
+          "label": 1,
+          "score": 0.9977655410766602
+        },
+        {
+          "id": "deepset-held_out_test-0039",
+          "label": 0,
+          "score": 0.0021725851111114025
+        },
+        {
+          "id": "deepset-held_out_test-0040",
+          "label": 1,
+          "score": 0.9985013008117676
+        },
+        {
+          "id": "deepset-held_out_test-0041",
+          "label": 0,
+          "score": 0.6373506188392639
+        },
+        {
+          "id": "deepset-held_out_test-0042",
+          "label": 0,
+          "score": 0.1596566140651703
+        },
+        {
+          "id": "deepset-held_out_test-0043",
+          "label": 1,
+          "score": 0.9985650181770325
+        },
+        {
+          "id": "deepset-held_out_test-0044",
+          "label": 0,
+          "score": 0.002935264492407441
+        },
+        {
+          "id": "deepset-held_out_test-0045",
+          "label": 1,
+          "score": 0.9984788298606873
+        },
+        {
+          "id": "deepset-held_out_test-0046",
+          "label": 0,
+          "score": 0.002093787770718336
+        },
+        {
+          "id": "deepset-held_out_test-0047",
+          "label": 0,
+          "score": 0.0019987965933978558
+        },
+        {
+          "id": "deepset-held_out_test-0048",
+          "label": 0,
+          "score": 0.0017817398766055703
+        },
+        {
+          "id": "deepset-held_out_test-0049",
+          "label": 1,
+          "score": 0.9985402822494507
+        },
+        {
+          "id": "deepset-held_out_test-0050",
+          "label": 0,
+          "score": 0.0017241248860955238
+        },
+        {
+          "id": "deepset-held_out_test-0051",
+          "label": 0,
+          "score": 0.0019300789572298527
+        },
+        {
+          "id": "deepset-held_out_test-0052",
+          "label": 1,
+          "score": 0.9985007047653198
+        },
+        {
+          "id": "deepset-held_out_test-0053",
+          "label": 1,
+          "score": 0.9985284805297852
+        },
+        {
+          "id": "deepset-held_out_test-0054",
+          "label": 0,
+          "score": 0.0020267937798053026
+        },
+        {
+          "id": "deepset-held_out_test-0055",
+          "label": 0,
+          "score": 0.0018829295877367258
+        },
+        {
+          "id": "deepset-held_out_test-0056",
+          "label": 0,
+          "score": 0.002019943203777075
+        },
+        {
+          "id": "deepset-held_out_test-0057",
+          "label": 1,
+          "score": 0.9985116124153137
+        },
+        {
+          "id": "deepset-held_out_test-0058",
+          "label": 0,
+          "score": 0.002263658680021763
+        },
+        {
+          "id": "deepset-held_out_test-0059",
+          "label": 0,
+          "score": 0.018959224224090576
+        },
+        {
+          "id": "deepset-held_out_test-0060",
+          "label": 0,
+          "score": 0.0018721385858953
+        },
+        {
+          "id": "deepset-held_out_test-0061",
+          "label": 0,
+          "score": 0.9933664202690125
+        },
+        {
+          "id": "deepset-held_out_test-0062",
+          "label": 0,
+          "score": 0.001965050585567951
+        },
+        {
+          "id": "deepset-held_out_test-0063",
+          "label": 0,
+          "score": 0.0025610034354031086
+        },
+        {
+          "id": "deepset-held_out_test-0064",
+          "label": 0,
+          "score": 0.36031660437583923
+        },
+        {
+          "id": "deepset-held_out_test-0065",
+          "label": 0,
+          "score": 0.002012210199609399
+        },
+        {
+          "id": "deepset-held_out_test-0066",
+          "label": 1,
+          "score": 0.9985601305961609
+        },
+        {
+          "id": "deepset-held_out_test-0067",
+          "label": 0,
+          "score": 0.9979438185691833
+        },
+        {
+          "id": "deepset-held_out_test-0068",
+          "label": 0,
+          "score": 0.002198557136580348
+        },
+        {
+          "id": "deepset-held_out_test-0069",
+          "label": 0,
+          "score": 0.9970036149024963
+        },
+        {
+          "id": "deepset-held_out_test-0070",
+          "label": 1,
+          "score": 0.9985077977180481
+        },
+        {
+          "id": "deepset-held_out_test-0071",
+          "label": 0,
+          "score": 0.9567115902900696
+        },
+        {
+          "id": "deepset-held_out_test-0072",
+          "label": 0,
+          "score": 0.017235167324543
+        },
+        {
+          "id": "deepset-held_out_test-0073",
+          "label": 0,
+          "score": 0.00484729278832674
+        },
+        {
+          "id": "deepset-held_out_test-0074",
+          "label": 1,
+          "score": 0.9982841610908508
+        },
+        {
+          "id": "deepset-held_out_test-0075",
+          "label": 1,
+          "score": 0.9984312653541565
+        },
+        {
+          "id": "deepset-held_out_test-0076",
+          "label": 0,
+          "score": 0.0038492409512400627
+        },
+        {
+          "id": "deepset-held_out_test-0077",
+          "label": 0,
+          "score": 0.0016295306850224733
+        },
+        {
+          "id": "deepset-held_out_test-0078",
+          "label": 1,
+          "score": 0.9983392953872681
+        },
+        {
+          "id": "deepset-held_out_test-0079",
+          "label": 1,
+          "score": 0.9984788298606873
+        },
+        {
+          "id": "deepset-held_out_test-0080",
+          "label": 1,
+          "score": 0.9984918832778931
+        },
+        {
+          "id": "deepset-held_out_test-0081",
+          "label": 1,
+          "score": 0.017385069280862808
+        },
+        {
+          "id": "deepset-held_out_test-0082",
+          "label": 0,
+          "score": 0.0019896358717232943
+        },
+        {
+          "id": "deepset-held_out_test-0083",
+          "label": 1,
+          "score": 0.0025945936795324087
+        },
+        {
+          "id": "deepset-held_out_test-0084",
+          "label": 1,
+          "score": 0.9985028505325317
+        },
+        {
+          "id": "deepset-held_out_test-0085",
+          "label": 1,
+          "score": 0.9965224266052246
+        },
+        {
+          "id": "deepset-held_out_test-0086",
+          "label": 1,
+          "score": 0.9985393285751343
+        },
+        {
+          "id": "deepset-held_out_test-0087",
+          "label": 1,
+          "score": 0.9985125660896301
+        },
+        {
+          "id": "deepset-held_out_test-0088",
+          "label": 1,
+          "score": 0.998360812664032
+        },
+        {
+          "id": "deepset-held_out_test-0089",
+          "label": 1,
+          "score": 0.9984421133995056
+        },
+        {
+          "id": "deepset-held_out_test-0090",
+          "label": 1,
+          "score": 0.9791836142539978
+        },
+        {
+          "id": "deepset-held_out_test-0091",
+          "label": 1,
+          "score": 0.9985711574554443
+        },
+        {
+          "id": "deepset-held_out_test-0092",
+          "label": 1,
+          "score": 0.9983054399490356
+        },
+        {
+          "id": "deepset-held_out_test-0093",
+          "label": 0,
+          "score": 0.001772379851900041
+        },
+        {
+          "id": "deepset-held_out_test-0094",
+          "label": 1,
+          "score": 0.9985319375991821
+        },
+        {
+          "id": "deepset-held_out_test-0095",
+          "label": 1,
+          "score": 0.9974650144577026
+        },
+        {
+          "id": "deepset-held_out_test-0096",
+          "label": 1,
+          "score": 0.9920539855957031
+        },
+        {
+          "id": "deepset-held_out_test-0097",
+          "label": 1,
+          "score": 0.9983587861061096
+        },
+        {
+          "id": "deepset-held_out_test-0098",
+          "label": 1,
+          "score": 0.9985176920890808
+        },
+        {
+          "id": "deepset-held_out_test-0099",
+          "label": 1,
+          "score": 0.9982120990753174
+        },
+        {
+          "id": "deepset-held_out_test-0100",
+          "label": 1,
+          "score": 0.9984632730484009
+        },
+        {
+          "id": "deepset-held_out_test-0101",
+          "label": 1,
+          "score": 0.9973875880241394
+        },
+        {
+          "id": "deepset-held_out_test-0102",
+          "label": 1,
+          "score": 0.9984536170959473
+        },
+        {
+          "id": "deepset-held_out_test-0103",
+          "label": 1,
+          "score": 0.9984391331672668
+        },
+        {
+          "id": "deepset-held_out_test-0104",
+          "label": 1,
+          "score": 0.9942215085029602
+        },
+        {
+          "id": "deepset-held_out_test-0105",
+          "label": 1,
+          "score": 0.9969315528869629
+        },
+        {
+          "id": "deepset-held_out_test-0106",
+          "label": 1,
+          "score": 0.9985249638557434
+        },
+        {
+          "id": "deepset-held_out_test-0107",
+          "label": 1,
+          "score": 0.9982935786247253
+        },
+        {
+          "id": "deepset-held_out_test-0108",
+          "label": 1,
+          "score": 0.9981335997581482
+        },
+        {
+          "id": "deepset-held_out_test-0109",
+          "label": 1,
+          "score": 0.9983595013618469
+        },
+        {
+          "id": "deepset-held_out_test-0110",
+          "label": 1,
+          "score": 0.9985557198524475
+        },
+        {
+          "id": "deepset-held_out_test-0111",
+          "label": 1,
+          "score": 0.9978734254837036
+        },
+        {
+          "id": "deepset-held_out_test-0112",
+          "label": 1,
+          "score": 0.9985111355781555
+        },
+        {
+          "id": "deepset-held_out_test-0113",
+          "label": 1,
+          "score": 0.9985083937644958
+        },
+        {
+          "id": "deepset-held_out_test-0114",
+          "label": 1,
+          "score": 0.9976196885108948
+        },
+        {
+          "id": "deepset-held_out_test-0115",
+          "label": 1,
+          "score": 0.9985483288764954
+        }
+      ],
+      "mean_test_inference_seconds": 0.033925484610743545,
+      "mean_calibration_inference_seconds": 0.0196431815008206,
+      "weight_sha256": "0367a9d7b42f288a25d0d9f3c86d4b10b55b919652d504db535da28313b8f89a"
+    }
+  }
+}

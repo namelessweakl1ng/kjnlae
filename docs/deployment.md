@@ -7,10 +7,10 @@ Production requires `KJNLAE_ENV=production`, a random `KJNLAE_API_KEY` of at lea
 For local Compose, set in an uncommitted `.env`:
 
 ```text
-KJNLAE_MODEL_DIR_HOST=./var/models/full-v0.2-public/best
+KJNLAE_MODEL_DIR_HOST=./var/models/full-v0.2-v3-600/best
 KJNLAE_MODEL_HASH=<sha256-of-manifest.json>
 ```
 
-Then run `docker compose up --build -d` and check `curl http://127.0.0.1:8000/health/ready`. Compose mounts the model directory read-only, persists metadata in a volume, binds host port to `127.0.0.1`, runs as a non-root user with read-only root filesystem and drops Linux capabilities. The image includes CPU inference dependencies but no model weights. If no verified artifact is mounted, the container can be live but not ready; scans are incomplete. The image build and actual container runtime require a working Docker daemon and external package indexes, and should be tested on the target host.
+Then run `docker compose up --build -d` and check `curl http://127.0.0.1:8000/health/ready`. Compose mounts the model directory read-only, persists metadata in a volume, binds host port to `127.0.0.1`, runs as a non-root user with read-only root filesystem and drops Linux capabilities. The image includes CPU inference dependencies but no model weights. If no verified artifact is mounted, the container can be live but not ready; scans are incomplete. The cloud image build used its existing proxy CA as a BuildKit secret and a proxy hostname mapping; the resulting image passed readiness and HTTP smoke with real weights. Container UID 10001 must read the mounted directory and files. A host-only mode-700 artifact produces readiness 503; use a dedicated model copy or ACL granting that UID read access without changing the original artifact. Fresh Fedora/CI networking remains unverified.
 
 The body limit is 128 KiB; text is capped at 32,768 characters; model windows, decoding, worker memory/time and rate are bounded. Default SQLite metadata retention is 500 records/7 days; set `KJNLAE_RETENTION=0` to disable insertion. Restrict database and authority-file permissions, encrypt host storage if policy requires it, and avoid storing full prompts or secrets in reverse-proxy logs. This code does not provide TLS termination, per-user sessions or distributed approval storage. Approvals are process-local, one-use and lost at restart; multiple workers require an external reviewed approval store before enabling sensitive actions.

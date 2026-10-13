@@ -1,0 +1,54 @@
+{
+  "status": "COMPLETE",
+  "base_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+  "epochs_completed": 2,
+  "steps": 924,
+  "best_epoch": 1,
+  "best_validation_f1_at_0_5": 0.8571428571428571,
+  "best_validation_loss": 0.9481367760454305,
+  "history": [
+    {
+      "epoch": 1,
+      "steps": 462,
+      "train_loss": 0.4563689802189204,
+      "validation_loss": 0.9481367760454305,
+      "validation_f1_at_0_5": 0.8571428571428571
+    },
+    {
+      "epoch": 2,
+      "steps": 924,
+      "train_loss": 0.1378058576156351,
+      "validation_loss": 0.8697596980200615,
+      "validation_f1_at_0_5": 0.8333333333333334
+    }
+  ],
+  "train_count": 924,
+  "validation_count": 12,
+  "class_weights": [
+    0.7230046948356808,
+    1.6210526315789473
+  ],
+  "initial_weight_sha256": "82c89acc833e07cef4238a36f4150f267083c0015c318060514ea03777eaf9a4",
+  "best_weight_sha256": "0367a9d7b42f288a25d0d9f3c86d4b10b55b919652d504db535da28313b8f89a",
+  "worker_seconds": 348.74466188199585,
+  "config": {
+    "base_dir": "var/models/base-distilbert",
+    "train_path": "var/data/prepared-v3/train.jsonl",
+    "validation_path": "var/data/prepared-v3/validation.jsonl",
+    "output_dir": "var/models/full-v0.2-v3-600",
+    "seed": 42,
+    "epochs": 2,
+    "max_tokens": 128,
+    "batch_size": 2,
+    "learning_rate": 2e-05,
+    "patience": 2,
+    "deadline_s": 600
+  },
+  "train_sha256": "a20fe7bd4e2a1d7fbd5da81d68a81ce37b52e724ff7a272aa7c4b7145bb911af",
+  "validation_sha256": "dba1dd1a859aebcf4ab4caa36ff3ee29efb4a266d77cbbfaec95eb9f6aa544c2",
+  "stop_reason": "",
+  "peak_worker_rss_bytes": 1889947648,
+  "peak_cgroup_bytes": 25292435456,
+  "parent_wall_seconds": 351.13462235199404,
+  "worker_exit_code": 0
+}

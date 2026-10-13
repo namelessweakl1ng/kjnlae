@@ -1,6 +1,6 @@
 # Reproduce the English CPU model
 
-These instructions produce a new **local** artifact. The model is not downloadable from this repository. Use Python 3.12+, four CPU cores, ample free disk and preferably 16–32 GiB RAM. The measured cloud run used 32 GiB and finished a bounded 32-step probe before a 660-step full run. Install CPU PyTorch and dependencies exactly as in the [README](../README.md). Do not train on the held-out test split or tune against it.
+These instructions produce a new **local** artifact. The model is not downloadable from this repository. Use Python 3.12+, four CPU cores, ample free disk and preferably 16–32 GiB RAM. The first cloud run used 660 TRAIN rows; the experimental follow-up used 924. Install CPU PyTorch and dependencies exactly as in the [README](../README.md). Do not train on held-out or regression cases or tune against them.
 
 1. Acquire the pinned Apache-2.0 base model explicitly:
 
@@ -85,3 +85,40 @@ KJNLAE_VERIFY_RELEASE=1 KJNLAE_TEST_MODEL_DIR="$KJNLAE_MODEL_DIR" \
 ```
 
 The local adapter validates hashes, labels, training steps and safetensors; disables remote code; runs on CPU in a timed worker; and reports incomplete if any supported view/window cannot be inspected. It does not accept arbitrary remote model IDs. A future GPU DeBERTa experiment requires a new reviewed training/evaluation and artifact contract; it is not a v0.2 runtime fallback.
+
+## Reproduce the experimental false-positive follow-up
+
+Complete steps 1–3 above first. The 50-case independent fixture was frozen in commit `1a307c5` **before** these training changes and must never be included in TRAIN, VALIDATION or CALIBRATION. The 30-case regression fixture is also excluded. Regenerate only public TRAIN source variants and prepare the new split:
+
+```bash
+python -m kjnlae.training.augment --train var/data/prepared-v2/train.jsonl \
+  --output var/data/deepset-benign-source-aug-v3.jsonl --count 200 --seed 43
+kjnlae train prepare --source var/data/original-v2.jsonl \
+  --source var/data/deepset-train.jsonl --source var/data/bipia-train.jsonl \
+  --source datasets/fixtures/v0.2-benign-train.jsonl \
+  --source var/data/deepset-benign-source-aug-v3.jsonl \
+  --source var/data/deepset-held_out_test.jsonl --output var/data/prepared-v3 --seed 42
+HF_HUB_OFFLINE=1 kjnlae train fit --base var/models/base-distilbert \
+  --train var/data/prepared-v3/train.jsonl \
+  --validation var/data/prepared-v3/validation.jsonl \
+  --output var/models/full-v0.2-v3-600 --epochs 2 --deadline 600
+HF_HUB_OFFLINE=1 kjnlae train evaluate --fit var/models/full-v0.2-v3-600 \
+  --prepared var/data/prepared-v3
+```
+
+Check for `status: COMPLETE` in `fit-report.json` before evaluation. The 924/12/12/116 manifest and all source hashes are recorded in [data provenance](model-data.md); the actual measurements and mixed results are in [follow-up evaluation](reports/v0.2-followup-evaluation.md). A 300-second attempt stopped incomplete before checkpointing, so 600 seconds is the tested bound on this four-core cloud machine, not a promise for every CPU.
+
+To use **this** local candidate, install or copy the entire `best` directory and pin its manifest. A reproduction can have a different hash; compute and verify the hash of the artifact you actually produced.
+
+```bash
+export KJNLAE_MODEL_DIR="$PWD/var/models/full-v0.2-v3-600/best"
+export KJNLAE_MODEL_HASH="$(sha256sum "$KJNLAE_MODEL_DIR/manifest.json" | cut -d' ' -f1)"
+kjnlae model verify "$KJNLAE_MODEL_DIR" --hash "$KJNLAE_MODEL_HASH"
+kjnlae doctor
+kjnlae benchmark --dataset datasets/fixtures/v0.2-independent-eval.json \
+  --output reports/independent-v0.2-v3
+KJNLAE_VERIFY_RELEASE=1 KJNLAE_TEST_MODEL_DIR="$KJNLAE_MODEL_DIR" \
+  KJNLAE_TEST_MODEL_HASH="$KJNLAE_MODEL_HASH" bash scripts/verify_all.sh
+```
+
+The executed cloud candidate's manifest hash is `496cb65dcfa13cd1f765177595fe84c712d69a6014d021633a32f86d8f327b29`. Its local weights are ignored by Git and are **not** in the earlier encrypted Fedora backup. Back up the new artifact and its `fit-report.json`, `evaluation-report.json`, prepared manifest and generated augmentation file separately before losing this workspace.
