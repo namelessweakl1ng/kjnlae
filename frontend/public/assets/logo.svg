@@ -1,4 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <title>kjnlae gateway monogram</title>
-  <path fill="#7da7ff" d="M6 8h22v7H13v34h10V27l9-9v25l10-11h10L38 47l10 10H37l-5-5v5H6V8Zm32 0h20v49H48l-7-8h10V15H38V8Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none" role="img" aria-labelledby="title">
+  <title id="title">kjnlae gate monogram</title>
+  <path d="M3 3h42v42H3z" fill="#346DD1"/>
+  <path d="M11 10v28m0-14h7m14-14L19 24l13 14" stroke="#fff" stroke-width="5" stroke-linejoin="miter"/>
+  <path d="M36 10h3v9h-3M36 29h3v9h-3" fill="#BBD5FF"/>
 </svg>

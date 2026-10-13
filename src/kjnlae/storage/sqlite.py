@@ -10,9 +10,9 @@ from typing import Any, Protocol
 
 
 class HistoryStore(Protocol):
-    def record(self, result: dict[str, Any]) -> None: ...
-    def list(self, limit: int = 100) -> list[dict[str, Any]]: ...
-    def clear(self) -> None: ...
+    def record(self, result: dict[str, Any], tenant: str = "legacy") -> None: ...
+    def list(self, limit: int = 100, tenant: str = "legacy") -> list[dict[str, Any]]: ...
+    def clear(self, tenant: str = "legacy") -> None: ...
 
 
 class SQLiteHistory:
@@ -30,8 +30,12 @@ class SQLiteHistory:
         with sqlite3.connect(path) as conn:
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS scans "
-                "(id INTEGER PRIMARY KEY, at REAL NOT NULL, metadata TEXT NOT NULL)"
+                "(id INTEGER PRIMARY KEY, at REAL NOT NULL, "
+                "tenant TEXT NOT NULL DEFAULT 'legacy', metadata TEXT NOT NULL)"
             )
+            if "tenant" not in {row[1] for row in conn.execute("PRAGMA table_info(scans)")}:
+                conn.execute("ALTER TABLE scans ADD COLUMN tenant TEXT NOT NULL DEFAULT 'legacy'")
+            conn.execute("CREATE INDEX IF NOT EXISTS scans_tenant_id ON scans(tenant, id DESC)")
 
     def _prune(self, conn: sqlite3.Connection) -> None:
         conn.execute("DELETE FROM scans WHERE at < ?", (time.time() - self.max_age_days * 86400,))
@@ -40,12 +44,16 @@ class SQLiteHistory:
             (self.retention,),
         )
 
-    def record(self, result: dict[str, Any]) -> None:
+    def record(self, result: dict[str, Any], tenant: str = "legacy") -> None:
         # Allowlist: prompts, evidence strings, tasks, destinations and secrets never persist.
         metadata = {
             k: result[k]
             for k in (
                 "decision",
+                "policy_decision",
+                "detection_status",
+                "model_status",
+                "model_hash",
                 "source",
                 "source_trust",
                 "risk_level",
@@ -57,30 +65,25 @@ class SQLiteHistory:
             )
             if k in result
         }
-        metadata["findings"] = [
-            {k: f[k] for k in ("rule_id", "category", "severity", "start", "end")}
-            for f in result.get("findings", [])
-        ]
-        classification = result.get("classification")
-        if classification:
-            metadata["classification_status"] = classification["status"]
+        if not tenant or len(tenant) > 128:
+            raise ValueError("Trusted tenant required")
         with self._lock, sqlite3.connect(self.path) as conn:
             if self.retention:
                 conn.execute(
-                    "INSERT INTO scans(at, metadata) VALUES (?, ?)",
-                    (time.time(), json.dumps(metadata)),
+                    "INSERT INTO scans(at, tenant, metadata) VALUES (?, ?, ?)",
+                    (time.time(), tenant, json.dumps(metadata)),
                 )
             self._prune(conn)
 
-    def list(self, limit: int = 100) -> list[dict[str, Any]]:
+    def list(self, limit: int = 100, tenant: str = "legacy") -> list[dict[str, Any]]:
         with self._lock, sqlite3.connect(self.path) as conn:
             self._prune(conn)
             rows = conn.execute(
-                "SELECT id, at, metadata FROM scans ORDER BY id DESC LIMIT ?",
-                (max(0, min(limit, 500)),),
+                "SELECT id, at, metadata FROM scans WHERE tenant = ? ORDER BY id DESC LIMIT ?",
+                (tenant, max(0, min(limit, 500))),
             ).fetchall()
         return [{"id": r[0], "at": r[1], **json.loads(r[2])} for r in rows]
 
-    def clear(self) -> None:
+    def clear(self, tenant: str = "legacy") -> None:
         with self._lock, sqlite3.connect(self.path) as conn:
-            conn.execute("DELETE FROM scans")
+            conn.execute("DELETE FROM scans WHERE tenant = ?", (tenant,))

@@ -1,34 +1,26 @@
-"""Measured fixture metrics. No external benchmark or probability calibration claims."""
+"""Observed fixture metrics for one fine-tuned detector and independent controls."""
 
 import hashlib
 import json
 import statistics
 from importlib.resources import files
 from pathlib import Path
-from time import perf_counter
 from typing import Any
 
 from kjnlae import Guard
+from kjnlae.evaluation.model import classification_metrics
 from kjnlae.evaluation.sandbox import run_scenarios
 
 
 def metrics(labels: list[bool], predicted: list[bool]) -> dict[str, Any]:
-    if len(labels) != len(predicted) or not labels:
-        raise ValueError("Nonempty paired labels required")
-    tp = sum(a and b for a, b in zip(labels, predicted, strict=True))
-    fn = sum(a and not b for a, b in zip(labels, predicted, strict=True))
-    fp = sum(not a and b for a, b in zip(labels, predicted, strict=True))
-    tn = sum(not a and not b for a, b in zip(labels, predicted, strict=True))
-    precision = tp / (tp + fp) if tp + fp else 0
-    recall = tp / (tp + fn) if tp + fn else 0
+    raw = classification_metrics([int(x) for x in labels], [int(x) for x in predicted])
     return {
         "count": len(labels),
-        "confusion_matrix": {"tp": tp, "fn": fn, "fp": fp, "tn": tn},
-        "precision": precision,
-        "recall": recall,
-        "f1": 2 * precision * recall / (precision + recall) if precision + recall else 0,
-        "false_positive_rate": fp / (fp + tn) if fp + tn else 0,
-        "false_negative_rate": fn / (fn + tp) if fn + tp else 0,
+        "confusion_matrix": {k: raw[k] for k in ("tp", "tn", "fp", "fn")},
+        **{
+            k: raw[k]
+            for k in ("precision", "recall", "f1", "false_positive_rate", "false_negative_rate")
+        },
     }
 
 
@@ -40,130 +32,90 @@ def benchmark(guard: Guard | None = None, dataset: Path | None = None) -> dict[s
     )
     cases = json.loads(raw)
     if not isinstance(cases, list) or not 1 <= len(cases) <= 10000:
-        raise ValueError("Dataset must contain 1..10000 cases")
-    detector = guard or Guard()
-    results: dict[str, Any] = {}
-    for mode in ("deterministic", "ml", "combined"):
-        if mode != "deterministic" and detector.classifier is None:
-            results[mode] = {"status": "not_run", "reason": "No actual model configured"}
-            continue
-        scans = [
-            detector.scan(
-                c["text"],
-                source=c.get("source", "retrieved_document"),
-                purpose=c.get("purpose", "reference"),
-                mode=mode,
+        raise ValueError("Dataset must contain 1..10000 examples")
+    if any(type(case.get("attack")) is not bool for case in cases):
+        raise ValueError("Explicit boolean labels required")
+    scanner = guard or Guard()
+    scans = [
+        scanner.scan(case["text"], source=case.get("source", "retrieved_document"))
+        for case in cases
+    ]
+    complete = [
+        scan.inspection_complete and scan.detection_status != "INCOMPLETE" for scan in scans
+    ]
+    latencies = sorted(scan.latency_ms for scan in scans)
+    detection: dict[str, Any] = {
+        "status": "MEASURED" if all(complete) else "INCOMPLETE",
+        "count": len(scans),
+        "complete_count": sum(complete),
+        "coverage": sum(complete) / len(scans),
+        "latency_ms": {
+            "mean": statistics.mean(latencies),
+            "p95": latencies[min(len(latencies) - 1, int(len(latencies) * 0.95))],
+        },
+    }
+    if all(complete):
+        labels = [case["attack"] for case in cases]
+        predictions = [scan.detection_status == "MALICIOUS_INDICATORS" for scan in scans]
+        detection.update(metrics(labels, predictions))
+        detection["per_category"] = {
+            category: metrics(
+                [labels[i] for i, c in enumerate(cases) if c["category"] == category],
+                [predictions[i] for i, c in enumerate(cases) if c["category"] == category],
             )
-            for c in cases
-        ]
-        labels = [c["attack"] for c in cases]
-        if not all(type(label) is bool for label in labels):
-            raise ValueError("Explicit boolean attack labels required")
-        predictions = [s.decision in {"BLOCK", "REQUIRE_REVIEW"} for s in scans]
-        available = [
-            s.classification is None or s.classification.status == "available" for s in scans
-        ]
-        coverage = sum(s.inspection_complete for s in scans) / len(scans)
-        if not all(available):
-            results[mode] = {
-                "status": "incomplete",
-                "count": len(scans),
-                "coverage": coverage,
-                "reason": "Classifier unavailable for some cases; no accuracy estimate",
-                "incomplete_inputs": sum(not s.inspection_complete for s in scans),
-            }
-            continue
-        latencies = sorted(s.latency_ms for s in scans)
-        per_category = {}
-        for category in sorted({c["category"] for c in cases}):
-            idx = [i for i, c in enumerate(cases) if c["category"] == category]
-            per_category[category] = metrics(
-                [labels[i] for i in idx], [predictions[i] for i in idx]
-            )
-        results[mode] = {
-            **metrics(labels, predictions),
-            "status": "complete" if all(available) else "degraded",
-            "coverage": coverage,
-            "truncated_inputs": 0,
-            "incomplete_inputs": sum(not s.inspection_complete for s in scans),
-            "per_category": per_category,
-            "latency_ms": {
-                "mean": statistics.mean(latencies),
-                "p95": latencies[min(len(latencies) - 1, int(len(latencies) * 0.95))],
-            },
-            "cases": [
-                {
-                    "id": c["id"],
-                    "expected_attack": label,
-                    "predicted_attack": p,
-                    "decision": s.decision,
-                    "complete": s.inspection_complete,
-                }
-                for c, label, p, s in zip(cases, labels, predictions, scans, strict=True)
-            ],
+            for category in sorted({case["category"] for case in cases})
         }
-    scenarios = run_scenarios(detector)
-    attacks = [s for s in scenarios if s["malicious"]]
-    benign = [s for s in scenarios if not s["malicious"]]
-    # Probe the same boundary under required-control failure.
-    from kjnlae.guards.actions import ActionGateway, Authority, Grant
-    from kjnlae.schemas import Action
-
-    action = Action(tool="send_email", resource="public", destination="bob@example.test")
-    ctx = Authority(
-        "probe", frozenset({"public"}), (Grant(action),), frozenset({"bob@example.test"})
-    )
-    gw = ActionGateway()
-    started = perf_counter()
-    failure = gw.authorize(action, ctx, gw.approve(action, ctx), controls_ready=False)
-    return {
+    scenarios = run_scenarios(scanner)
+    attacks = [x for x in scenarios if x["malicious"]]
+    benign = [x for x in scenarios if not x["malicious"]]
+    report = {
         "dataset": {
             "name": str(dataset) if dataset else "kjnlae-original-regression-v1",
-            "external": dataset is not None,
+            "external": bool(dataset),
             "sha256": hashlib.sha256(raw).hexdigest(),
             "count": len(cases),
             "attack_count": sum(c["attack"] for c in cases),
-            "limitations": "Hand-authored regression cases; no held-out generalization estimate",
+            "limitations": "Original regression fixtures; not a generalization estimate",
         },
-        "positive_definition": "BLOCK or REQUIRE_REVIEW (WARN is negative)",
-        "detectors": results,
+        "detector": detection,
+        "model": scanner.capabilities(),
         "defense": {
             "attack_count": len(attacks),
             "benign_count": len(benign),
-            "attack_success_rate": sum(s["attack_succeeded"] for s in attacks) / len(attacks),
-            "unguarded_attack_success_rate": sum(s["unguarded_attack_succeeded"] for s in attacks)
+            "attack_success_rate": sum(x["attack_succeeded"] for x in attacks) / len(attacks),
+            "authorized_task_completion_rate": sum(x["completed"] for x in benign) / len(benign),
+            "benign_task_rejection_rate": sum(not x["completed"] for x in benign) / len(benign),
+            "unauthorized_action_prevention_rate": sum(not x["executed"] for x in attacks)
             / len(attacks),
-            "authorized_task_completion_rate": sum(s["completed"] for s in benign) / len(benign),
-            "benign_task_rejection_rate": sum(not s["completed"] for s in benign) / len(benign),
-            "unauthorized_action_prevention_rate": sum(not s["executed"] for s in attacks)
-            / len(attacks),
-            "control_failure_decision": failure.decision,
-            "control_failure_latency_ms": (perf_counter() - started) * 1000,
-            "mean_defense_overhead_ms": statistics.mean(s["defense_latency_ms"] for s in scenarios),
-            "simulation": "Scripted local tool proposals; no actual LLM benchmark",
+            "mean_defense_overhead_ms": statistics.mean(x["defense_latency_ms"] for x in scenarios),
+            "simulation": "Scripted proposals and synthetic local callback effects; no real LLM",
         },
-        "model": getattr(detector.classifier, "provenance", lambda: None)(),
+        "scenarios": scenarios,
     }
+    if guard is None:
+        scanner.close()
+    return report
 
 
 def markdown_report(report: dict[str, Any]) -> str:
+    detection = report["detector"]
     lines = [
-        "# kjnlae measured benchmark",
+        "# kjnlae measured fixture benchmark",
         "",
         f"Dataset: {report['dataset']['name']}",
         f"SHA256: {report['dataset']['sha256']}",
+        f"Status: {detection['status']}",
+        f"Coverage: {detection['complete_count']}/{detection['count']}",
         "",
-        report["dataset"]["limitations"],
-        "",
-        "| Detector | Precision | Recall | F1 | FPR | FNR |",
-        "|---|---:|---:|---:|---:|---:|",
     ]
-    for mode, result in report["detectors"].items():
-        if "precision" in result:
-            lines.append(
-                f"| {mode} | "
+    if detection["status"] == "MEASURED":
+        lines.extend(
+            [
+                "| Precision | Recall | F1 | FPR | FNR |",
+                "|---:|---:|---:|---:|---:|",
+                "| "
                 + " | ".join(
-                    f"{result[k]:.4f}"
+                    f"{detection[k]:.4f}"
                     for k in (
                         "precision",
                         "recall",
@@ -172,20 +124,16 @@ def markdown_report(report: dict[str, Any]) -> str:
                         "false_negative_rate",
                     )
                 )
-                + " |"
-            )
-        else:
-            lines.append(f"| {mode} | {result['status']} | — | — | — | — |")
-    lines.extend(
-        [
-            "",
-            "## Defense (six synthetic scenarios)",
-            "",
-            "```json",
-            json.dumps(report["defense"], indent=2),
-            "```",
-            "",
-            "These results do not establish resistance of any real LLM or external benchmark.",
-        ]
+                + " |",
+                "",
+            ]
+        )
+    else:
+        lines.append("Accuracy metrics withheld because model inspection was incomplete.\n")
+    defense = report["defense"]
+    lines.append(
+        f"Unauthorized action prevention: {defense['unauthorized_action_prevention_rate']:.4f}"
     )
+    lines.append(f"Authorized task completion: {defense['authorized_task_completion_rate']:.4f}")
+    lines.append("Sandbox uses scripted proposals, not a live LLM or external benchmark.")
     return "\n".join(lines) + "\n"

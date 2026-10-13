@@ -50,7 +50,9 @@ def verify_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
         raise ValueError("Invalid calibration threshold")
     files = raw.get("files")
     if not isinstance(files, dict) or not {
-        "model.safetensors", "tokenizer.json", "config.json"
+        "model.safetensors",
+        "tokenizer.json",
+        "config.json",
     }.issubset(files):
         raise ValueError("Required model files missing from manifest")
     for name, expected in files.items():
@@ -67,8 +69,13 @@ def verify_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
     if config.get("id2label") != {"0": "NON_INJECTION", "1": "INJECTION"}:
         raise ValueError("Unexpected classifier labels")
     return ArtifactManifest(
-        path, actual_hash, str(raw.get("artifact_version", "")), BASE_REVISION,
-        raw["trained_steps"], float(threshold), True,
+        path,
+        actual_hash,
+        str(raw.get("artifact_version", "")),
+        BASE_REVISION,
+        raw["trained_steps"],
+        float(threshold),
+        True,
     )
 
 

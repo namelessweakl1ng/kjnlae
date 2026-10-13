@@ -1,88 +1,82 @@
-export type Finding = {
-  rule_id: string;
-  category: string;
-  explanation: string;
-  severity: number;
-  start: number;
-  end: number;
-  evidence: string;
-  view: string;
-};
 export type Scan = {
-  decision: string;
-  risk_level: string;
-  risk_score: number;
-  detection_mode: string;
-  findings: Finding[];
-  explanation: string;
-  mitigation: string;
+  detection_status: "NO_EVIDENCE_FOUND" | "MALICIOUS_INDICATORS" | "INCOMPLETE";
+  policy_decision: "ALLOW" | "WARN" | "BLOCK" | "REQUIRE_REVIEW";
+  model_status: string;
+  evidence: { view: string; start: number; end: number; score: number; model_hash: string }[];
+  coverage: { views: number; windows: number };
+  reason_codes: string[];
+  policy_id: string;
   latency_ms: number;
   inspection_complete: boolean;
-  policy_id: string;
-  source_trust: string;
-  classification: {
-    status: string;
-    score: number | null;
-    model_id: string;
-    revision: string;
-  } | null;
+  model_hash: string | null;
+  model_score: number | null;
+  risk_level: string;
+  explanation: string;
+  recommended_action: string;
 };
+
 export type Scenario = {
   id: string;
   task: string;
   input: string;
+  source: string;
   malicious: boolean;
-  scan: Scan;
-  action: unknown;
-  authorization: { decision: string; reason: string };
+  detection_status: string;
+  detection_decision: string;
+  action_decision: string;
+  action_reason: string;
   executed: boolean;
-  output: string;
-  unguarded_output: string;
-  attack_succeeded: boolean;
   completed: boolean;
+  attack_succeeded: boolean;
   defense_latency_ms: number;
 };
+
 export type Metric = {
   status: string;
-  count?: number;
+  count: number;
+  complete_count: number;
+  coverage: number;
   precision?: number;
   recall?: number;
   f1?: number;
   false_positive_rate?: number;
   false_negative_rate?: number;
-  coverage?: number;
-  confusion_matrix?: { tp: number; fn: number; fp: number; tn: number };
-  latency_ms?: { mean: number; p95: number };
+  confusion_matrix?: { tp: number; tn: number; fp: number; fn: number };
+  latency_ms: { mean: number; p95: number };
 };
+
 export type Report = {
-  dataset: {
-    name: string;
-    count: number;
-    attack_count: number;
-    external: boolean;
-    limitations: string;
+  dataset: { name: string; sha256: string; count: number; attack_count: number; external: boolean; limitations: string };
+  detector: Metric;
+  defense: {
+    attack_success_rate: number;
+    authorized_task_completion_rate: number;
+    benign_task_rejection_rate: number;
+    unauthorized_action_prevention_rate: number;
+    simulation: string;
   };
-  detectors: Record<string, Metric>;
-  defense: Record<string, string | number>;
+  scenarios: Scenario[];
 };
+
 export type History = {
   id: number;
   at: number;
-  decision: string;
-  source: string;
-  risk_score: number;
-  findings: { rule_id: string; category: string }[];
+  policy_decision: string;
+  detection_status: string;
+  model_status: string;
   latency_ms: number;
+  inspection_complete: boolean;
 };
+
 export type Capabilities = {
   version: string;
-  model: Record<string, unknown>;
+  detector: string;
+  model_status: string;
+  model_config_error: string;
+  threshold: number | null;
   policy: string;
   action_policy: string;
+  output_policy: string;
   production: boolean;
-  laboratory: boolean;
-  max_characters: number;
-  history_retention: number;
-  granted_actions: number;
   limitations: string[];
 };

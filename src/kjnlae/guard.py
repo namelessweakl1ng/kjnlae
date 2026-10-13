@@ -30,6 +30,8 @@ class Guard:
         classifier: Classifier | None = None,
         policy: InputPolicy | None = None,
         threshold: float | None = None,
+        model_dir: str | None = None,
+        model_hash: str | None = None,
     ) -> None:
         self.policy = policy or InputPolicy()
         self._configuration_error = ""
@@ -37,8 +39,10 @@ class Guard:
         if classifier is not None:
             self.threshold = threshold or 0.5
         else:
-            directory = os.getenv("KJNLAE_MODEL_DIR", "")
-            manifest_hash = os.getenv("KJNLAE_MODEL_HASH", "")
+            directory = model_dir if model_dir is not None else os.getenv("KJNLAE_MODEL_DIR", "")
+            manifest_hash = (
+                model_hash if model_hash is not None else os.getenv("KJNLAE_MODEL_HASH", "")
+            )
             self.classifier = None
             self.threshold = 0.5
             if directory and manifest_hash:
@@ -70,6 +74,11 @@ class Guard:
                 else "UNAVAILABLE"
             ),
             "model_config_error": self._configuration_error,
+            "model_hash": (
+                self.classifier.config.manifest_hash
+                if isinstance(self.classifier, LocalClassifier)
+                else None
+            ),
             "threshold": self.threshold if self.classifier else None,
             "policy": self.policy.id,
         }
