@@ -105,7 +105,7 @@ def _local_worker(conn: Connection, cfg: LocalModelConfig) -> None:
         os.environ["OMP_NUM_THREADS"] = "4"
         resource.setrlimit(resource.RLIMIT_AS, (cfg.memory_mb * 1024**2,) * 2)
         import torch
-        from transformers import AutoModelForSequenceClassification, AutoTokenizer  # type: ignore[attr-defined]
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
         artifact = verify_artifact(cfg.model_dir, cfg.manifest_hash)
         torch.set_num_threads(4)
