@@ -62,7 +62,7 @@ def _probe_worker(config: ProbeConfig, rows: list[dict[str, Any]], queue: Any) -
     try:
         os.environ["OMP_NUM_THREADS"] = "4"
         import torch
-        from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer  # type: ignore[attr-defined]
+        from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer
 
         torch.manual_seed(config.seed)
         torch.set_num_threads(4)
