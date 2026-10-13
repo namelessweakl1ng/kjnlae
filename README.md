@@ -1,5 +1,7 @@
 # kjnlae
 
+**New to this codebase?** Read the [CODEBASE.md walkthrough](CODEBASE.md) for the full project map, scan and authorization flows, model training, testing, and a suggested reading order.
+
 **An experimental, local prompt-injection scanner with independent action and data-release controls.**
 
 Prompt injection occurs when instructions in a message, retrieved page, document, email or tool response try to redirect an AI application away from the authorized user task. kjnlae v0.2 uses one detector: **our genuinely fine-tuned English DistilBERT**. It does not run keyword signatures, regex attack rules, a third-party detector, or an untrained-model fallback. If the trained artifact is absent, corrupt, timed out or unable to inspect the bounded input completely, the scan reports `INCOMPLETE` and cannot clear the content.
