@@ -3134,3 +3134,251 @@ flowchart LR
 Use it as a first map if you're unsure which source file to open for a particular feature. Read the actual modules rather than treating documentation as an executable specification.
 
 ---
+
+## 31. Safe extension recipes and contributor decision tables
+
+The previous sections explain existing code. This section turns that knowledge into practical, bounded development exercises. The recurring principle is to understand **which security boundary owns a behavior** before editing it.
+
+### 31.1 Recipe: add a new benign documentation fixture
+
+**Goal:** ensure your model-evaluation suite includes realistic educational quotations without contaminating training.
+
+1. Choose an appropriate untouched evaluation dataset/fixture location and understand whether the existing cases are independent or regression cases.
+2. Write an original, non-sensitive fictional example that is clearly benign while quoting a suspicious instruction. Label it consistently with the fixture's schema.
+3. Freeze its version/hash **before** evaluating a newly trained candidate. Do not edit its expected result just because a current model disagrees.
+4. Run the evaluation and record whether it is a false positive. Include full TP/TN/FP/FN counts rather than only a hand-selected screenshot.
+5. If you later want to train on similar data, author a **separate** training example with a distinct family and prove non-leakage. Never copy the frozen evaluation row into TRAIN.
+6. Update `docs/model-data.md`, `docs/benchmarks.md` and model card/release notes as appropriate.
+
+**Why:** a benchmark only stays useful if it remains independent enough to detect when an attempted improvement overfits earlier tests.
+
+### 31.2 Recipe: change how a flagged document is handled
+
+**Goal:** allow a trusted, explicitly authenticated analysis workflow to review a quoted attack without letting arbitrary retrieved content bypass the policy.
+
+1. Read `policies/decision.py` from top to bottom.
+2. Determine whether the intended behavior is a **source-specific decision** or a **trusted host task**. The latter must use `TrustedSecurityContext`, not an untrusted request field.
+3. Add tests around missing/corrupt model, above/below threshold, sensitive context, requested source and trusted `analysis_intent`.
+4. Do not alter the detector's logits or mark `INCOMPLETE` as clean.
+5. Document the policy semantics in `docs/security-policies.md` and update the UI copy if users should understand the distinction.
+
+**Why:** there is a difference between changing a model's learning and changing a host's explicit response to model evidence.
+
+### 31.3 Recipe: add a new supported host tool
+
+**Goal:** add an action, for example an internal `schedule_meeting` or another carefully defined business operation.
+
+1. Decide whether the operation has real side effects, recipient/destination fields and human-approval requirements.
+2. Extend the `Operation`/`ProposedAction` schema in `guards/resources.py` with a bounded action shape.
+3. Update `ActionGateway.authorize_v2` to enforce the tool's exact allowed fields and security prerequisites.
+4. Decide what `ResourceGrant` means for that operation and how versioning applies.
+5. Keep `admin` and arbitrary code execution forbidden unless a new, independently reviewed design explicitly requires them.
+6. Implement actual side effects only in the **host-owned callback**, never inside a request string or the scan API.
+7. Ensure `GuardedExecutor` checks the relevant resource state atomically with the backing system.
+8. Add positive, cross-tenant, missing-grant, changed-version, expiry, parameter-smuggling and approval-replay tests.
+9. Update `docs/security-policies.md`, `docs/api.md`, SDK examples and model/threat limitations.
+
+**Why:** a new supported tool changes the application's *authority surface*, not the text detector's vocabulary.
+
+### 31.4 Recipe: integrate a real document store
+
+**Goal:** replace fictional in-memory resources with a real RAG/enterprise document service.
+
+1. Authenticate the requester through the real application's identity/session subsystem.
+2. Resolve tenant, role, resource identity and current document version from trusted storage.
+3. Check permission **before** retrieving sensitive text.
+4. Convert eligible documents into `RagChunk` or equivalent bounded content envelopes.
+5. Scan those approved chunks and withhold incomplete/blocked results as required.
+6. Feed only approved content to the external AI model, if one is used.
+7. Authorize every privileged tool proposal with host-owned grants/allowed tools.
+8. Perform transactional current-state rechecks at real execution time.
+9. Release generated output only after resource/recipient/output checks.
+10. Write integration tests against a **sandbox** backing store first, including adversarial tenant boundaries.
+
+**Why:** the gateway's security controls are valuable only when composed at the actual data-access and side-effect boundaries.
+
+### 31.5 Recipe: train a candidate with fewer false positives
+
+**Goal:** improve benign code/quotation handling without losing too much attack recall.
+
+1. Preserve the published v0.2 weights and evaluation files unchanged as a baseline.
+2. Collect additional legally usable diverse benign examples and *separate* novel attacks, ensuring provenance and consent where relevant.
+3. Split by document/family to avoid training/test duplication.
+4. Prepare/validate via `training/dataset.py`.
+5. Probe CPU feasibility and train with `training/fit.py`; record hyperparameters and time/memory limits.
+6. Select a checkpoint using validation, then calibrate threshold only with the distinct calibration split.
+7. Evaluate on frozen old and new independent datasets. Report TP, TN, FP, FN, F1, FPR and latency *per distribution*.
+8. Compare with v0.2 not just on a single nice-looking prompt, but also on hard benign quotations, code, natural instructions and source-context shifts.
+9. Set explicit acceptance criteria before inspecting the new test outcomes.
+10. If genuinely improved, publish a new experimental version with its own hashes, license/attribution review and download instructions.
+
+**Why:** publishing a better model means measurable improvement under known constraints, not merely changing a model file.
+
+### 31.6 Recipe: safely change model windowing
+
+1. Read `LocalModelConfig` validation rules.
+2. Read `window_ranges` and `build_windows` and how they compose tokenizer offsets with transformed source mappings.
+3. Understand that prefix tokens and special tokens shrink usable content width.
+4. Write edge tests for empty tokenized views, exact-window boundaries, last short window, overlap, Unicode and multiple derived views.
+5. Verify no silently truncated coverage can return `inspection_complete=True`.
+6. Run actual model inference and compare latency/memory as well as false-positive/false-negative effects.
+7. Update `docs/detection-engine.md` and operational limits.
+
+**Why:** a seemingly harmless window-size change can affect what the detector sees and how long inference takes.
+
+### 31.7 Recipe: modify a React screen without breaking the backend
+
+1. Locate the relevant tab in `App.tsx` and its typed response in `types.ts`.
+2. Confirm the real FastAPI route/response shape in `api/app.py` and `schemas_v2.py`.
+3. Add/adjust a component and CSS without rendering raw untrusted HTML.
+4. For evidence features, preserve source codepoint mapping and the `scannedContent` snapshot.
+5. Update `App.test.tsx` or `Evidence.test.tsx`.
+6. Run frontend test/build commands and, when possible, the Chromium loopback smoke.
+7. Check model status, loading, error and empty-history states—not only successful API responses.
+
+**Why:** visual polish must preserve the semantics of `INCOMPLETE` and the distinction between API connectivity and model availability.
+
+### 31.8 Recipe: publish a new checkpoint without breaking current users
+
+1. Do not overwrite the existing public v0.2 model's reviewed bytes.
+2. Preserve a reproducibility archive and exact evaluation report of the new candidate.
+3. Export a new evaluated manifest with training source/split hashes and new `files` SHA-256 entries.
+4. Publish under a new version/repository or clearly immutable Hub commit.
+5. Add a model card naming limitations, licenses and evaluation distribution.
+6. Update `REVIEWED_V3_MANIFEST_SHA256` only as part of a deliberate version-aware downloader change; do not silently make a v0.2 command trust a different model.
+7. Add downloader regression tests and run a fresh *anonymous* public download to a new directory.
+8. Verify local inference, the full release gate and an API/dashboard scan with the new weights.
+9. Keep v0.2 installation docs/manifest accessible for existing users.
+
+**Why:** weights and artifact hashes form a safety/reproducibility contract across the codebase and public Hub.
+
+### 31.9 Recipe: fix a security bug responsibly
+
+1. Reduce the bug to the *owning boundary*: input classification, trusted identity, resource grant, executor, output release, HTTP or UI.
+2. Write a regression test proving the unsafe behavior fails **before** changing code, using fictional nonsecret data.
+3. Identify the exact source of trusted authority and ensure no request- or LLM-derived value can replace it.
+4. Fix as narrowly as possible without adding a fallback bypass.
+5. Run targeted security tests, then the complete project verification.
+6. Update threat model, limitations, release notes and any affected configuration.
+7. Use [SECURITY.md](SECURITY.md) for responsible reporting when a flaw should not be disclosed in a public issue before it is fixed.
+
+**Why:** changes to one boundary can accidentally weaken another even if the demonstration screen appears to improve.
+
+### 31.10 Change impact matrix
+
+| You change... | You must inspect... | You must verify... |
+|---|---|---|
+| `Guard.inspect` | Result contract, policy, API and frontend | Unit + v2 integration + real-model gate |
+| `prepare_views` | Source mapping, view bounds, coverage | Preprocessing and model-window tests |
+| `_local_worker` | Time/memory limits, tokenizer and status handling | Worker tests + real-weight smoke |
+| `InputPolicy` | Source/profile/trusted context and complete failure states | `test_v2_policy.py` + integration |
+| `ResourceGrant.permits` | Principal/tenant/version/expiry/destination | Resource + authorization tests |
+| `approve_v2` | Reviewer identity, action digest, replay | Approval/security tests |
+| `GuardedExecutor.execute` | TOCTOU and callback uncertainty | Executor/security tests |
+| `OutputGuard.release` | Recipient/grant semantics and known-secret logic | Output-release/security tests |
+| `Settings.from_env` | Production requirements and example env file | API config tests, deployment smoke |
+| `SQLiteHistory.record` | Privacy allowlist/tenant scoping | Audit/history security tests |
+| `App.tsx` | API contracts and status meaning | Frontend tests/build, browser smoke |
+| `training/fit.py` | Dataset/hashes/selection and memory limits | Training tests + independent evaluation |
+| `evaluation/model.py` | Threshold/test contamination risk | Calibration tests and benchmark review |
+| `download_verified_model` | Pins, staging, target directory and Hub revisions | Offline downloader tests + public smoke |
+| `publish_model.py` | Public inventory, secrets, licensing | Dry-run inventory + actual Hub verification |
+| `Dockerfile`/`compose.yaml` | Host UID, volumes, health, resources | Container CI and actual-weight host test |
+
+## 32. Glossary, distinctions and authoritative reference index
+
+### 32.1 Where to find the source of truth
+
+| Topic | Main code source | Explanatory record |
+|---|---|---|
+| Main SDK | [`src/kjnlae/guard.py`](src/kjnlae/guard.py) | [architecture](docs/architecture.md) |
+| Text views | [`detection/preprocessing.py`](src/kjnlae/detection/preprocessing.py) | [detection engine](docs/detection-engine.md) |
+| Local model worker | [`classifiers/local.py`](src/kjnlae/classifiers/local.py) | [detection engine](docs/detection-engine.md) |
+| Manifest verification | [`classifiers/artifacts.py`](src/kjnlae/classifiers/artifacts.py) | [public-model guide](docs/public-model-release.md) |
+| Model download | [`classifiers/download.py`](src/kjnlae/classifiers/download.py) | [public model](https://huggingface.co/namelessweakling/kjnlae-distilbert-v0.2) |
+| Input policy | [`policies/decision.py`](src/kjnlae/policies/decision.py) | [security policies](docs/security-policies.md) |
+| Tool proposals/grants | [`guards/resources.py`](src/kjnlae/guards/resources.py) | [threat model](docs/threat-model.md) |
+| Authorization/approvals | [`guards/actions.py`](src/kjnlae/guards/actions.py) | [security policies](docs/security-policies.md) |
+| Safe host callback | [`guards/executor.py`](src/kjnlae/guards/executor.py) | [architecture](docs/architecture.md) |
+| Output release | [`guards/output.py`](src/kjnlae/guards/output.py) | [security policies](docs/security-policies.md) |
+| FastAPI routes | [`api/app.py`](src/kjnlae/api/app.py) | [API](docs/api.md) |
+| Trusted deployment | [`api/config.py`](src/kjnlae/api/config.py) | [deployment](docs/deployment.md) |
+| Metadata/history | [`storage/sqlite.py`](src/kjnlae/storage/sqlite.py) | [threat model](docs/threat-model.md) |
+| Frontend | [`frontend/src/App.tsx`](frontend/src/App.tsx) | This guide, section 28 |
+| Model preparation | [`training/dataset.py`](src/kjnlae/training/dataset.py) | [data provenance](docs/model-data.md) |
+| Fine-tuning | [`training/fit.py`](src/kjnlae/training/fit.py) | [training instructions](docs/model-training.md) |
+| Evaluation/calibration | [`evaluation/model.py`](src/kjnlae/evaluation/model.py) | [measured follow-up](docs/reports/v0.2-followup-evaluation.md) |
+| Synthetic attack lab | [`evaluation/sandbox.py`](src/kjnlae/evaluation/sandbox.py) | [benchmarks](docs/benchmarks.md) |
+| Verification | [`scripts/verify_all.sh`](scripts/verify_all.sh) | [verification record](docs/verification.md) |
+| Public publication | [`scripts/publish_model.py`](scripts/publish_model.py) | [model card](docs/model-card-v0.2.md) |
+| Previous architecture | [archived v0.1 deep dive](docs/archive/v0.1-codebase.md) | [v0.1 to v0.2 migration](docs/migration-v0.1-v0.2.md) |
+
+### 32.2 Common concepts easy to confuse
+
+**Model vs application.** The Hugging Face repo stores trained weights; GitHub stores the security gateway that interprets those weights and implements independent authorization. Neither alone is equivalent to a complete secure host AI product.
+
+**Detection status vs policy decision.** `MALICIOUS_INDICATORS` is evidence; `BLOCK`, `WARN` or `REQUIRE_REVIEW` is the configured response. A score is not an authorization token.
+
+**Scanner vs guard executor.** `Guard` does *not* execute the tool action described in submitted text. `GuardedExecutor` runs only an explicitly provided host callback after exact authorization and catalog checks.
+
+**Auth header vs true host principal.** The `KJNLAE_API_KEY` protects certain HTTP routes; it doesn't say which employee/tenant may read an arbitrary resource. The trusted host must map real authenticated sessions to grants.
+
+**Model token vs API token vs age identity.** A Hugging Face write token authorizes the **maintainer to upload** a model. A kjnlae API credential protects **one deployed API**. An age private identity decrypts the maintainer's **private backup**. None belongs in public Git, a training dataset or an example prompt.
+
+**Completeness vs accuracy.** `inspection_complete=True` means the required supported windows/views were processed. It does not prove that the classifier made the correct judgment. Likewise, a valid SHA-256 proves artifact identity, not real-world security effectiveness.
+
+**False positive vs false negative.** A false positive wrongly blocks benign text; a false negative misses a malicious example. Both matter, and the current experimental model has demonstrated both.
+
+**Model threshold vs security policy.** The threshold cuts the model score into positive/negative detector evidence. Security policy translates the evidence into host action recommendations. Grant/approval checks separately authorize real effects.
+
+**Local vs cloud.** The Hugging Face Hub distributes the model *once* during explicit download. After that, kjnlae runs local PyTorch inference and does not automatically call the model hosting service. No paid LLM service is needed for the scanner.
+
+**Unit tests vs external evaluations.** Python/React tests check implementation behaviors. Independent datasets measure classifier performance on limited samples. The six-case lab checks synthetic authorized/unauthorized effects. None alone proves security for every live agent, language and domain.
+
+**Development demo vs production integration.** The fictional hospital/enterprise and chatbot adapters illustrate correct trust-boundary placement. Their example catalog/credentials are not substitutes for real authenticated sessions, database transactions, actual regulatory controls or external penetration testing.
+
+### 32.3 Final v0.1 → v0.2 migration contrast
+
+| Architectural question | Historical v0.1 | Current v0.2 |
+|---|---|---|
+| Primary injection detector | Hand-authored regex/keyword signatures | **Fine-tuned local DistilBERT only** |
+| ML | Optional local adapter, arbitrary compatible artifact | Verified trained/evaluated artifact required for scans |
+| Missing model | Rule detector could still operate | Explicit `INCOMPLETE` / no fallback |
+| Detection evidence | Rule/keyword findings | Model window scores and mapped source spans |
+| Calibration threshold | Rule/severity-driven policy and optional adapter semantics | Evaluated manifest threshold used by `InputPolicy` |
+| Data training | No project's own deployed fine-tuned artifact | Real CPU fine-tuning, checkpoint selection, evaluation |
+| Model distribution | No final public project-trained model | Public Hugging Face model with pinned verified downloader |
+| Versioned scanning API | Historical v1 endpoints | `/v2/scan` and strict v2 result contract |
+| Authorization evolution | Legacy authority/grant methods | Tenant/resource/version v2 grants, exact reviewer approval |
+| Host executor | Illustrative authorization separation | `GuardedExecutor` with current-version synthetic callback |
+| Frontend | Legacy status/rules interface | Real model status, window evidence, fixture metrics |
+| Archived guide | `docs/archive/v0.1-codebase.md` | **This `CODEBASE.md`** |
+
+The historical document remains available for understanding design evolution, but **do not copy v0.1 detector code or test expectations into v0.2**.
+
+### 32.4 What is genuinely complete now?
+
+- The `0.2.0` application source and dashboard are public in GitHub `main`.
+- The reviewed genuinely fine-tuned DistilBERT model is publicly accessible on Hugging Face, separately from the code.
+- A fresh public model download into an empty Fedora directory passed manifest/per-file SHA-256 verification.
+- A separate Fedora 44 / Python 3.13 actual-weight release gate passed 86 Python tests, four frontend tests, formatting/type checks, frontend build, doctor and fixture benchmark.
+- GitHub CI verified Python 3.12/3.13, frontend and container behavior around the public-model distribution update.
+- The model is still **EXPERIMENTAL**, with meaningful false-positive and false-negative limitations documented and production/external evaluation not established.
+
+The project has an honest usable public **experimental** release. Further adversarial evaluation, generalization work, richer host integrations or a production certification process belong to future versions.
+
+### 32.5 The five principles to keep when you return to the code later
+
+1. **Untrusted content can propose, never grant authority.** Principal, tenant, current resource and reviewer all belong to the host.
+2. **Text detection is model-only and hash-pinned.** Do not reintroduce unverified untrained fallback paths that report content as safe.
+3. **A failed or incomplete scan is not a pass.** Coverage and model readiness are as important as a score.
+4. **Execute and release only after independent host checks.** Permissions, tool allowlists, current resource versions and output controls must remain separate.
+5. **Measure claims with the right evidence.** Unit tests, classifier benchmarks and live attacker outcomes are different scientific/engineering questions.
+
+---
+
+## Closing note
+
+kjnlae started as an experiment in prompt-injection inspection. v0.2 adds an actual, locally trained detector, a verifiable public model distribution channel, strict model-only scan behavior and more explicit separation between untrusted text and host authority. The best way to understand it is to follow **one original input through `Guard.inspect`**, then follow **one proposed action through `ActionGateway` and `GuardedExecutor`**. Every other subsystem supports those two flows.
+
+**Use this guide with the checked-in source files and measured reports, not instead of them.** When the project evolves, update this guide alongside the code and keep the archived v0.1 description intact as historical context.
