@@ -51,8 +51,7 @@ def main() -> None:
             print(f"  {name}: {file.stat().st_size} bytes, sha256={digest}")
         if not args.publish:
             print(
-                "Staging verified; NOTHING uploaded. "
-                "Pass --publish after reviewing the model card."
+                "Staging verified; NOTHING uploaded. Pass --publish after reviewing the model card."
             )
             return
 
