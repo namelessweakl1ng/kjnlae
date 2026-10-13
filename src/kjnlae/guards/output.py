@@ -82,9 +82,13 @@ class OutputGuard:
         resources: list[str],
         authority: HostAuthority,
         catalog: ResourceCatalog,
+        *,
+        controls_ready: bool = True,
     ) -> OutputResult:
         inspected = self.inspect(text, structured)
         violations = list(inspected.violations)
+        if not controls_ready and (recipient is not None or resources):
+            violations.append("Required model control unavailable for resource release")
         if not authority.principal or not authority.tenant:
             violations.append("Verified output principal and tenant required")
         if recipient is not None and recipient not in authority.destinations:

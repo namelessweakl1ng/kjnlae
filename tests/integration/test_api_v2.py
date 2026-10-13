@@ -18,6 +18,16 @@ def test_v2_missing_model_is_explicit_and_v1_scan_gone(tmp_path):
             client.get("/v2/system/capabilities").json()["detector"]
             == "fine_tuned_local_transformer_only"
         )
+        rag = client.post(
+            "/v2/rag/inspect",
+            json={
+                "chunks": [
+                    {"text": "Retrieved passage", "source": "retrieved_document", "origin_id": "c1"}
+                ]
+            },
+        )
+        assert rag.status_code == 200
+        assert rag.json()[0]["detection_status"] == "INCOMPLETE"
 
 
 def test_v2_rejects_mode_and_forged_authority(tmp_path):
@@ -31,6 +41,13 @@ def test_v2_rejects_mode_and_forged_authority(tmp_path):
             client.post(
                 "/v2/guard/action",
                 json={"tool": "admin", "tenant": "demo", "resource": "x", "approved": True},
+            ).status_code
+            == 422
+        )
+        assert (
+            client.post(
+                "/v2/guard/output",
+                json={"text": "x" * 20000, "structured": {"summary": "x" * 20000}},
             ).status_code
             == 422
         )

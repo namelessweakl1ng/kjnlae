@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import Field
+from pydantic import Field, model_validator
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -19,13 +19,14 @@ from kjnlae import Guard, __version__
 from kjnlae.api.audit import configure_audit
 from kjnlae.api.config import Settings
 from kjnlae.api.middleware import LimitsMiddleware
+from kjnlae.context import TrustedSecurityContext
 from kjnlae.evaluation.benchmark import benchmark
 from kjnlae.evaluation.sandbox import run_scenarios
 from kjnlae.guards.actions import ActionGateway, Authority
 from kjnlae.guards.output import OutputGuard
 from kjnlae.guards.resources import HostAuthority, ProposedAction, ResourceCatalog
 from kjnlae.schemas import ActionRequest, ActionResult, OutputRequest, OutputResult
-from kjnlae.schemas_v2 import InspectionRequestV2, InspectionResultV2, StrictV2
+from kjnlae.schemas_v2 import ContentEnvelope, InspectionRequestV2, InspectionResultV2, StrictV2
 from kjnlae.storage.sqlite import SQLiteHistory
 
 
@@ -39,6 +40,16 @@ class OutputRequestV2(StrictV2):
     structured: dict[str, str] | None = None
     recipient: str | None = Field(default=None, max_length=254)
     resources: list[str] = Field(default_factory=list, max_length=16)
+
+    @model_validator(mode="after")
+    def bounded_output(self) -> "OutputRequestV2":
+        if len(self.text) + sum(len(value) for value in (self.structured or {}).values()) > 32768:
+            raise ValueError("Combined output exceeds supported limit")
+        return self
+
+
+class RagInspectRequestV2(StrictV2):
+    chunks: list[ContentEnvelope] = Field(min_length=1, max_length=16)
 
 
 def create_app(
@@ -186,9 +197,17 @@ def create_app(
             request.resources,
             host_authority,
             catalog,
+            controls_ready=controls_ready(),
         )
         audit.info("output_decision", extra={"decision": result.decision})
         return result
+
+    @app.post("/v2/rag/inspect", dependencies=protected)
+    def inspect_rag(request: RagInspectRequestV2) -> list[InspectionResultV2]:
+        context = TrustedSecurityContext(
+            host_authority.principal, host_authority.tenant, host_authority.task
+        )
+        return guard.inspect_chunks(request.chunks, context)
 
     @app.get("/v2/history", dependencies=protected)
     def get_history() -> list[dict[str, Any]]:

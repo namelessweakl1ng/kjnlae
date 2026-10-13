@@ -9,6 +9,8 @@ from kjnlae.api.config import Settings
 from kjnlae.classifiers.local import LocalClassifier, LocalModelConfig
 from kjnlae.detection.preprocessing import prepare_views
 from kjnlae.evaluation.model import _score_rows
+from kjnlae.guard import Guard
+from kjnlae.integrations.hosts import run_enterprise_case, run_hospital_case
 
 
 @pytest.mark.model
@@ -59,3 +61,22 @@ def test_real_weight_http_scan_and_readiness(tmp_path) -> None:
         assert result["model_status"] == "AVAILABLE"
         assert result["inspection_complete"]
         assert result["model_hash"] == manifest_hash
+
+
+@pytest.mark.model
+def test_real_weight_host_boundaries() -> None:
+    model_path = os.getenv("KJNLAE_TEST_MODEL_DIR")
+    manifest_hash = os.getenv("KJNLAE_TEST_MODEL_HASH")
+    if not model_path or not manifest_hash:
+        pytest.skip("Set local trained model path and manifest hash")
+    guard = Guard(model_dir=model_path, model_hash=manifest_hash)
+    try:
+        own = run_hospital_case("own_patient", guard)
+        other = run_hospital_case("other_patient", guard)
+        enterprise = run_enterprise_case("other_employee", guard)
+        assert own["action_status"] == "EXECUTED"
+        assert other["action_status"] == "DENIED"
+        assert other["detection_decision"] == "NOT_EVALUATED"
+        assert enterprise["action_status"] == "DENIED"
+    finally:
+        guard.close()

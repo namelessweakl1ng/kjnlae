@@ -4,18 +4,22 @@ permissions:
   contents: read
 jobs:
   backend:
+    strategy:
+      matrix:
+        python: ['3.12', '3.13']
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python }}
           cache: pip
       - run: pip install -r requirements-dev.lock && pip install --no-deps -e .
-      - run: ruff check . && ruff format --check . && mypy src
-      - run: pytest
+      - run: bash scripts/verify_all.sh
       - run: pip-audit -r requirements.lock
-      - run: kjnlae benchmark --output reports/benchmark
+      - run: |
+          kjnlae benchmark --output reports/benchmark && exit 1 || test "$?" -eq 1
+          python -c "import json; assert json.load(open('reports/benchmark.json'))['detector']['status'] == 'INCOMPLETE'"
       - uses: actions/upload-artifact@v4
         with:
           name: measured-fixture-benchmark
