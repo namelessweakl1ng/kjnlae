@@ -30,21 +30,20 @@ The scanner's score is a model output, **not** a calibrated attack-success proba
 
 ## Public model distribution (experimental)
 
-**Source code alone cannot classify prompt injections.** The reviewed fine-tuned weights are a separate ~257 MiB artifact, and the scanner reports `INCOMPLETE` without them. A safe public Hugging Face model publication is being prepared; do not assume the model is uploaded merely because this repository is public.
+**Source code alone cannot classify prompt injections.** The reviewed fine-tuned weights are a separate ~257 MiB artifact and are now publicly downloadable as the [experimental kjnlae DistilBERT v0.2 model](https://huggingface.co/namelessweakling/kjnlae-distilbert-v0.2). Without verified local weights, scanning returns `INCOMPLETE`.
 
-Once published, install the optional Hub client and download the reviewed weights **explicitly**, with checksum verification, from its published repository:
+After installing kjnlae and its CPU inference dependencies below, download the published weights **explicitly**. The downloader checks the pinned manifest SHA-256 and each artifact file before installing:
 
 ```bash
 python -m pip install 'huggingface_hub>=0.30,<1'
 kjnlae model download \
-  --repo YOUR_HF_USERNAME/kjnlae-distilbert-v0.2 \
-  --revision PUBLISHED_HF_COMMIT_SHA
+  --repo namelessweakling/kjnlae-distilbert-v0.2
 export KJNLAE_MODEL_DIR="$PWD/var/models/full-v0.2-v3-reviewed"
 export KJNLAE_MODEL_HASH="54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b"
 kjnlae doctor
 ```
 
-Replace placeholders only after the publisher confirms a public upload and a fresh anonymous download smoke test. No normal scan downloads models or calls external inference services. This model remains experimental: substantial benign false positives, possible misses, and **no production protection claims**. The action/authorization and output-release controls must remain independent.
+**Public download verified on Fedora:** the standalone download of the public 267,832,560-byte `model.safetensors` and tokenizer/configuration files passed every manifest file hash check; the extracted `manifest.json` SHA-256 matched the pinned hash. The earlier Fedora release gate also passed real-weight inference and 86 Python/four frontend tests. No scan or API startup downloads weights or calls external inference services. This model remains experimental: substantial benign false positives, possible misses, and **no production protection claims**. Independent authorization and output controls must remain enabled.
 
 See [public model publishing, checksum-pinned download and verification](docs/public-model-release.md) and [the model card](docs/model-card-v0.2.md).
 
@@ -64,7 +63,7 @@ python -m pip install --no-deps -e .
 npm --prefix frontend ci
 ```
 
-PyTorch must be installed from its CPU wheel index first; a generic `pip install .[ml]` can download CUDA wheels. Training imports `pyarrow` only for the pinned public parquet adapter. The package itself imports without heavy ML dependencies, but a complete scan requires the trained artifact and inference dependencies. The reviewed candidate weights are **not included in this public Git repository**. The artifact directory in the original cloud workspace is `var/models/full-v0.2-v3-reviewed`. The candidate and its reproducibility files have been securely backed up, restored and verified on Fedora from an age-encrypted compact archive (247,022,534 bytes, original archive SHA-256 `9f94543a16c03aa33aabaa01449e2e5109fc63e6c3e3d2e1984183e21db69bf6`). The private transfer repository is not a public model distribution mechanism. The earlier original-model backup is also preserved on Fedora. The separate full v3 cloud archive (988,030,729 bytes; SHA-256 `47113ef1d5aa3e9ef01f70365e9e316785d466f3a7a225734391b68e3bd8e1a0`) remains in the cloud workspace and is distinct from the compact Fedora backup. The reviewed model manifest SHA256 is:
+PyTorch must be installed from its CPU wheel index first; a generic `pip install .[ml]` can download CUDA wheels. Training imports `pyarrow` only for the pinned public parquet adapter. The package itself imports without heavy ML dependencies, but a complete scan requires the trained artifact and inference dependencies. The reviewed candidate weights are **not included in this public Git repository**, but the final reviewed model is [publicly available on Hugging Face](https://huggingface.co/namelessweakling/kjnlae-distilbert-v0.2). The artifact directory in the original cloud workspace is `var/models/full-v0.2-v3-reviewed`. The candidate and its reproducibility files have been securely backed up, restored and verified on Fedora from an age-encrypted compact archive (247,022,534 bytes, original archive SHA-256 `9f94543a16c03aa33aabaa01449e2e5109fc63e6c3e3d2e1984183e21db69bf6`). The private transfer repository is not a public model distribution mechanism. The earlier original-model backup is also preserved on Fedora. The separate full v3 cloud archive (988,030,729 bytes; SHA-256 `47113ef1d5aa3e9ef01f70365e9e316785d466f3a7a225734391b68e3bd8e1a0`) remains in the cloud workspace and is distinct from the compact Fedora backup. The reviewed model manifest SHA256 is:
 
 ```text
 54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b
@@ -143,4 +142,4 @@ Production mode requires a 32-character-or-longer API key, a pinned local model 
 
 Known-secret output checks are not universal DLP. The model can miss attacks and overflag benign material; unsupported long/encoded content fails incomplete. An application that bypasses the guarded executor cannot inherit its protection. See [threat model](docs/threat-model.md), [policies](docs/security-policies.md), [architecture](docs/architecture.md), [research](docs/research.md), [deployment](docs/deployment.md), [limitations](docs/limitations.md) and [responsible reporting](SECURITY.md).
 
-**Project status:** experimental v0.2 development branch for review. The candidate reduced one independent fixture's false positives but worsened the Deepset held-out result and still misclassifies many benign quotations and code samples. It is unsuitable as a sole operational decision-maker. Independent authorization remains mandatory. The reviewed commit passed hosted push and PR CI. A fresh Fedora 44 / Python 3.13 installation with restored verified real weights passed the release gate: 86 Python tests, four frontend tests, Ruff, strict mypy, dashboard build, real-model doctor and benchmark. One third-party Starlette/httpx deprecation warning was observed. External benchmarks and production deployment remain unverified; this is **not** a production security release.
+**Project status:** experimental v0.2 merged into `main`; the fine-tuned model is publicly available on Hugging Face with a verified download workflow. The candidate reduced one independent fixture's false positives but worsened the Deepset held-out result and still misclassifies many benign quotations and code samples. It is unsuitable as a sole operational decision-maker. Independent authorization remains mandatory. The reviewed commit passed hosted push and PR CI. A fresh Fedora 44 / Python 3.13 installation with restored verified real weights passed the release gate: 86 Python tests, four frontend tests, Ruff, strict mypy, dashboard build, real-model doctor and benchmark. One third-party Starlette/httpx deprecation warning was observed. External benchmarks and production deployment remain unverified; this is **not** a production security release.
