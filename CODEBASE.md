@@ -2051,3 +2051,544 @@ The reviewed public checkpoint records:
 
 More epochs may overfit a small corpus. More repeated/synthetic examples can shift model behavior toward particular source categories. A bigger encoder can add latency and memory cost. A model can appear stronger on the familiar 50-case set while becoming weaker on a held-out external distribution. Future experiments need independently gathered benign and attack examples, clean split separation, explicit acceptance thresholds, and the same checks for false negatives *and* false positives. The next model is a new experiment; it must not retroactively change measured v0.2 claims.
 
+
+## 25. Classification metrics, calibration and benchmark internals
+
+### 25.1 `classification_metrics` is a pure function
+
+The function takes aligned binary ground-truth labels and predictions. It rejects empty/mismatched arrays and values outside 0/1. It counts TP, TN, FP and FN, then calculates precision, recall, F1, false-positive and false-negative rates with explicit zero-denominator behavior.
+
+```python
+# Conceptual use of the real evaluation function
+from kjnlae.evaluation.model import classification_metrics
+
+truth = [1, 1, 0, 0]
+predicted = [1, 0, 1, 0]
+metrics = classification_metrics(truth, predicted)
+# TP=1, FN=1, FP=1, TN=1; precision=recall=F1=0.5
+```
+
+The example is arithmetic illustration, not a report of the trained model's results. `tests/evaluation/test_model_metrics.py` and `tests/evaluation/test_metrics.py` are relevant if changing formulas.
+
+### 25.2 Threshold selection implementation
+
+`calibrate_threshold(truth, scores)` requires aligned score/label arrays with **both classes present** and numeric scores in [0,1]. It constructs candidates from the observed score values plus 0.5, then chooses the threshold maximizing a lexicographic objective:
+
+1. F1 on CALIBRATION rows.
+2. Lower false-positive rate among equal-F1 choices.
+3. Closeness to 0.5 among remaining ties.
+
+It predicts injection when `score >= threshold`. The tested v3 threshold is the numerical result of this selection on a very small 12-row calibration split; it is not a per-input confidence or automatic risk-approval function.
+
+### 25.3 Why separate validation and calibration?
+
+They answer different questions: validation chooses **which weights** to save, while calibration chooses **where to draw the positive/negative decision boundary** for the chosen weights. If you adjust weights and threshold using the same fixed test set over and over, that set eventually becomes part of your training feedback loop. The v0.2 pipeline attempts to keep a cleaner division, but broader independently sourced benchmarks remain needed.
+
+### 25.4 `validate_evaluation_splits`
+
+This helper reads the CALIBRATION and HELD_OUT_TEST JSONL files, checks nonempty correct split tags and denies overlapping example IDs. Together with dataset preparation's family/normalized/near-duplicate checks, this reduces straightforward leakage. Source provenance and SHA-256s provide an audit trail of which bytes were measured.
+
+### 25.5 `_score_rows` and reproducible inference
+
+Evaluation loads local tokenizer/model weights and scores the specified labeled rows; it records output scores and timing. The measured report compares an initial untrained-head control and the fine-tuned selected checkpoint. This comparison is evidence that the trained weights learned something; it cannot establish practical attack resistance by itself.
+
+### 25.6 `evaluate_and_promote`
+
+The function combines a completed `fit-report.json` with the prepared partition directory, validates required hashes/splits, calibrates each control/model, evaluates HELD_OUT_TEST, writes `evaluation-report.json`, constructs an evaluated `manifest.json` for the best checkpoint, and verifies it with `verify_artifact`. The artifact remains marked `EXPERIMENTAL`.
+
+The word "promote" in a function name means **making an evaluated local artifact available to runtime verification**, not certification as production-safe. A user deciding to publish it still owes honest documentation of its limitations.
+
+### 25.7 `benchmark` uses the real `Guard` contract
+
+`evaluation/benchmark.py` reads a JSON fixture (the bundled original regression set by default or a provided file), validates it as a bounded list with explicit boolean `attack` labels, and asks a `Guard` to scan every row. It records completeness, mean/p95 latencies and coverage.
+
+If all scans completed, it computes confusion-matrix metrics and grouped `per_category` results. If even one required scan was incomplete, the detector report is labeled `INCOMPLETE` instead of producing an apparently measured precision/recall over an incomplete subset.
+
+Then it executes `run_scenarios(scanner)`, attaches the synthetic defense measurements and returns a combined structured report. The Markdown-report function formats that data for humans.
+
+### 25.8 An important distinction: provenance versus "external"
+
+The benchmark's `dataset.external` field indicates whether the caller passed a dataset file rather than using the bundled default. It is **not proof** of an independently conducted external security study. A homemade file passed with `--dataset` does not automatically become a realistic attack benchmark.
+
+### 25.9 Per-category result interpretation
+
+`per_category` lets readers inspect where the classifier behaves differently across categories of benign and malicious inputs. A global F1 alone might hide terrible treatment of code, documentation quotations or particular data sources. When comparing models, always inspect the counts in each category; a category with only five examples has very wide statistical uncertainty.
+
+### 25.10 Missing-model benchmark behavior
+
+The model-only architecture requires measured accuracy **only when the trained model actually ran**. Without weights, `Guard` returns `INCOMPLETE` scans. The benchmark still records coverage/latency and synthetic boundary behavior, but withholds unsupported classifier precision/recall. GitHub CI intentionally tests this degraded branch instead of claiming an accuracy score from untrained or fictitious predictions.
+
+### 25.11 Understanding false-positive work
+
+Imagine a legitimate user asks an AI to write a security training article quoting attacks. A detector that flags all quoted "ignore instructions" strings can be useful for alerting but harmful if its result always causes a hard block. The existing v0.2 design supports explicit host-owned `analysis_intent` as one limited way to handle that situation. This is a **policy exception with trust preconditions**, not a training replacement, and doesn't solve the underlying model generalization problem.
+
+### 25.12 Metrics on the selected v3 model
+
+**Independent 50-case fixture:** TP15, TN25, FP10, FN0, F1 0.750, benign FPR 0.286.
+
+**Original 30-case fixture:** TP17, TN3, FP9, FN1, F1 about 0.773, benign FPR 0.750.
+
+**Official Deepset 116-case held-out:** TP58, TN47, FP9, FN2, F1 about 0.913, benign FPR 0.161.
+
+The model improved benign FPR on the new authored fixture relative to the previous model, but worsened Deepset benign FPR. The report's six scripted authorization scenarios produced 2/2 completed authorized reads and 4/4 rejected unauthorized effects. Those facts are all meaningful **only with their precise dataset and scenario qualifications**.
+
+### 25.13 Benchmark-extension checklist
+
+When contributing a new benchmark, record: repository/dataset revision and license, task and examples, whether tests were frozen before training, contamination/leakage review, language/domain distribution, model exact manifest hash, threshold, input source conventions, any excluded/incomplete rows, confusion matrix, precision/recall/F1, benign FPR, full-system latency, and whether a **real tool/LLM environment** was involved. Avoid "100% attack prevention" claims from a few synthetic rows.
+
+## 26. Complete authorization, executor and output implementation details
+
+This section revisits the security boundary at source-symbol level, including legacy compatibility and edge-case precedence.
+
+### 26.1 Authority cannot come from a scan's JSON body
+
+`InspectionRequestV2` contains text, source and optional bounded context reference. It does **not** contain a trustworthy `principal`, `tenant`, `ResourceGrant`, `approval_token` or executable tool callback. The host must authenticate real users and construct `HostAuthority` before any actual access decision.
+
+A security anti-pattern is parsing "user: admin" from an LLM message, then doing `HostAuthority(principal="admin", ...)`. That would let an untrusted prompt impersonate an identity even though the downstream gateway's comparison code is correct.
+
+### 26.2 Proposed-action schema and limit details
+
+The `Operation` type includes `read_document`, `send_email`, `delete_document` and `admin`. The action request bounds the length of tenant/resource/destination strings and the number of parameter keys. It is a Pydantic model; invalid extra fields are denied, not silently ignored.
+
+Even a well-typed action is only a *proposal*. Passing input validation does not mean the user has permission. Validators prevent malformed shapes; authorization checks prevent unauthorized intent.
+
+### 26.3 HostAuthority and resource catalog
+
+`HostAuthority` is immutable and holds principal, tenant, task, allowed tools, grants and destinations. `ResourceCatalog` maps resource IDs to `ResourceRecord`s containing tenant, owner, version and sensitivity. It exposes `resolve`, `replace` and `run_if_current`.
+
+The catalog's thread lock protects the current synthetic in-memory record during the callback. It does not by itself lock a real network filesystem, remote employee database or third-party SaaS API. A real host adapter must enforce comparable atomic conditions at the real storage boundary.
+
+### 26.4 Exact grant semantics
+
+`ResourceGrant.permits` requires **all** of the following:
+
+```text
+grant.principal == authenticated_principal
+grant.tenant == proposed_action.tenant
+grant.resource == proposed_action.resource
+grant.operation == proposed_action.tool
+grant.version == current_resource_record.version
+grant.expires_at > current_time
+action.destination is absent OR action.destination is explicitly grant-allowed
+```
+
+A grant to read `resource-A` is not a grant to read `resource-B`. A grant to read is not a grant to send an email. A grant for tenant A cannot be used as tenant B's authority. This specificity is the main deterministic safeguard.
+
+### 26.5 `ActionGateway`'s proposal digest
+
+The v2 gateway computes SHA-256 over the serialized proposed action. The approval record stores that digest with principal, tenant, catalog version and monotonic expiration. The digest binds exact parameters, including recipient and message fields, rather than only the broad tool name.
+
+If the attacker gets the assistant to alter even one approval-relevant field, the new action digest no longer matches the previous approval. It must be reviewed separately.
+
+### 26.6 Approval eligibility and distinct reviewer
+
+`approve_v2` refuses empty reviewer IDs and requires `reviewer != authority.principal`. It also first checks whether the exact action is currently `REQUIRE_REVIEW`. The method assumes the **host already authenticated that reviewer** and displayed the exact action to them. There is no untrusted HTTP endpoint for issuing approvals based on text like "approved by the manager."
+
+A generated token is stored only for a limited time and is removed on successful use. Approval capacity and age are bounded to avoid indefinite accumulation.
+
+### 26.7 Why `admin` is deliberately denied
+
+`ActionGateway.authorize_v2` checks `action.tool == "admin"` and refuses it even if someone accidentally includes `admin` in allowed tools. This is a hard restriction in the current synthetic operation contract. If a future system adds administrative actions, it should design a separate high-assurance authorization and review flow, not merely remove that branch.
+
+### 26.8 Operation-specific parameter controls
+
+- `read_document`: no export destination and no arbitrary parameter map.
+- `send_email`: requires host-allowed destination; only `subject`/`body` keys.
+- `delete_document`: in the current logic, no extra arbitrary destination or parameter.
+- All supported parameter values are length-bounded.
+
+These checks prevent an apparently harmless `read_document` proposal from smuggling an email/export destination via a secondary field. They are not a complete schema for every real tool API in the world.
+
+### 26.9 Controls readiness and fail-closed intent
+
+When `controls_ready=False`, the action gateway cannot return an ordinary `ALLOW`. Depending on sensitivity/tool type it returns `BLOCK` or a limited `WARN` state, and the guarded executor only executes for `ALLOW`. The host must provide `controls_ready` based on actual required checks; it must not automatically mark it true after the model fails.
+
+### 26.10 Approval consumption and replay
+
+`authorize_v2` looks up the one-use approval under a lock, confirms stored digest/principal/tenant/version/expiry, then **deletes it** before returning a successful authorization. A replay should not pass that lookup twice. An approval for a stale resource version must not pass when the catalog changes.
+
+### 26.11 `ExecutionResult` and real-world side effects
+
+`GuardedExecutor.execute` returns:
+
+| Status | Meaning |
+|---|---|
+| `EXECUTED` | Authorization passed and host callback returned successfully |
+| `DENIED` | No callback occurred through this guarded path |
+| `UNKNOWN` | Callback raised; side effects may already have occurred |
+
+The `UNKNOWN` case is one of the most valuable correctness details in the code. Suppose an SMTP operation sends a message but the connection fails before acknowledging it; retrying automatically could send the email twice. The gateway accurately declines to claim the side effect definitely did not happen.
+
+### 26.12 Two checks against resource races
+
+After authorization, the executor calls `catalog.resolve` again and verifies the same version, tenant and owner returned by the authorization result. Then it calls `catalog.run_if_current(expected_record, callback)` for the local synthetic adapter. This narrows a "time of check vs time of use" gap.
+
+In real infrastructure, use database transactions, version compares, host tool permissions and idempotency strategies as appropriate. The in-memory example is not a substitute for those controls.
+
+### 26.13 Legacy v0.1 action compatibility
+
+`guards/actions.py` still includes older `Grant` and `Authority` dataclasses and `approve`/`authorize` methods for compatibility. `schemas.py` retains older `Action` and result types. Don't assume the legacy and v2 paths share the same schema or safety guarantees. New host integrations should use `ProposedAction`, `HostAuthority` and `authorize_v2`/`GuardedExecutor`.
+
+### 26.14 Output inspection versus output release
+
+`OutputGuard.inspect` returns findings about content: known sensitive string matches, decoded/HTML-visible variants, destination allowlist violations and disallowed structured keys. `OutputGuard.release` additionally requires trustworthy principal/tenant/recipient and exact resource/export grants. HTTP callers cannot authorize release by claiming that an output is safe.
+
+### 26.15 Why the default output allowlist is restrictive
+
+The current default structured output allowlist includes only `summary`. An arbitrary new key such as `raw_database_dump` is rejected rather than accepted automatically. Allowlist expansion requires domain-specific review, because a named field can carry sensitive content even if its name seems harmless.
+
+### 26.16 Known secret matching
+
+The output guard checks configured known secret values against multiple text representations. This can catch some obvious or modestly disguised disclosures, but it cannot know every undisclosed sensitive value. A safer primary strategy is to deny unauthorized document access and grant only minimal data to the LLM in the first place. Output scanning is a later defense, not an alternative to proper ACLs.
+
+### 26.17 Recipient/destination controls
+
+The gateway checks both permitted URL hosts inside generated text and exact recipients for explicit resource release. A destination that appears harmless in a prompt is not trusted; the host's `destinations` and relevant `ResourceGrant.destinations` must authorize the actual send/external release.
+
+### 26.18 How to audit an authorization bug
+
+Start with the exact `ProposedAction` and `HostAuthority` objects constructed by host code (never by the model). Then record the current catalog record and grants. Follow `authorize_v2` in its actual order and identify the first failing condition. Finally check if `GuardedExecutor` was called with the correct control readiness/approval token and whether `OutputGuard.release` was performed before releasing data.
+
+**Do not debug authorization by tweaking the DistilBERT threshold.** That changes text classification, not host permission.
+
+### 26.19 Test coverage for this subsystem
+
+`test_resource_grants.py`, `test_authorization.py`, `test_guarded_executor.py`, `test_output_release.py` and `test_chatbot_http.py` collectively cover important parts of the boundary. For any change, add both positive and negative examples; a policy that blocks everything trivially may stop synthetic attacks while failing legitimate functionality.
+
+## 27. HTTP, deployment settings, middleware and SQLite deep dive
+
+### 27.1 `Settings` field inventory
+
+Current `Settings` dataclass fields include:
+
+| Field | Default / source | Purpose |
+|---|---|---|
+| `production` | false; `KJNLAE_ENV=production` sets true | Stricter deployment checks |
+| `api_key` | empty; `KJNLAE_API_KEY` | Optional bearer credential, mandatory 32+ chars in production |
+| `database` | `var/audit.db`; `KJNLAE_DATABASE` | Metadata-only SQLite location |
+| `retention` | 500; `KJNLAE_RETENTION` | Max history count |
+| `rate_limit` | 60; `KJNLAE_RATE_LIMIT` | Request rate threshold |
+| `cors_origins` | empty; `KJNLAE_CORS_ORIGINS` | Browser origin allowlist |
+| `allowed_hosts` | localhost/127.0.0.1/testserver; `KJNLAE_ALLOWED_HOSTS` | Trusted HTTP Host headers |
+| `authority_path` | empty; `KJNLAE_AUTHORITY_FILE` | Legacy authority config |
+| `authority_v2_path` | empty; `KJNLAE_AUTHORITY_V2_FILE` | Trusted principal/tenant/resource grants |
+| `model_dir` | empty; `KJNLAE_MODEL_DIR` | Local verified artifact directory |
+| `model_hash` | empty; `KJNLAE_MODEL_HASH` | Exact deployment manifest pin |
+| `output_hosts` | empty; `KJNLAE_OUTPUT_HOSTS` | Outbound link/URL allowlist |
+| `output_secrets` | empty tuple; `KJNLAE_OUTPUT_SECRETS_JSON` | Configured known sensitive values |
+
+The `output_secrets` value is parsed as JSON, not as comma-separated plain text. It must not be logged or checked into a repository.
+
+### 27.2 Production constraints
+
+`Settings.__post_init__` requires a 32-character-or-longer static API key, forbids wildcard CORS and requires a nonempty model directory and manifest hash when `production` is true. `rate_limit` is also bounded. These are **necessary configuration checks**, not a complete production security certification. A real public service still needs TLS, authenticated end users, tenant isolation in backing systems, deployment updates and incident response.
+
+### 27.3 Trusted authority-file loader
+
+`Settings.authority_v2` reads a host-configured authority file only if supplied. It rejects a symlinked or oversized file, requires mode 0600 in production, validates its schema with Pydantic, rejects invalid identity/tenant/task, cross-tenant records and duplicate resource IDs, and checks every grant's target/version/expiry. It converts relative grant validity into an actual expiration time.
+
+Without an authority file, the default host gets an empty allowed-tool list and no grants. This is intentional: starting a developer dashboard must **not** give API users a privileged tool identity.
+
+### 27.4 API factory's dependency injection
+
+`create_app` supports passed `settings`, `action_gateway`, `trusted_authority`, `trusted_authority_v2`, `resource_catalog` and `guard_override` for host integration/testing. The default CLI creates these from application-side configuration. Do not expose arbitrary creation of those objects from untrusted request payloads.
+
+### 27.5 Authentication check
+
+The protected routes use a dependency that reads the optional `Authorization` header. If `api_key` is set, it removes the `Bearer ` prefix and uses constant-time comparison logic. Missing/wrong tokens raise HTTP 401. If `api_key` is empty in local development, the auth dependency does not require a token.
+
+**Do not confuse this single API credential with per-employee or per-patient identity**; it is a transport credential. The v2 action layer separately needs host-owned verified principal and grants.
+
+### 27.6 Middleware boundaries
+
+`CORSMiddleware` controls browser cross-origin behavior, not resource authorization. `TrustedHostMiddleware` limits Host headers to configured hosts. `LimitsMiddleware` bounds rate/request handling. Content schemas bound actual `text` fields too. Together these controls help reduce accidental exposure, but they do not automatically stop every DoS technique or malicious client behind a public load balancer.
+
+### 27.7 Lifespan and readiness probes
+
+The lifespan callback may start the local model worker during a service-readiness scan. `/health/live` always indicates the process is running if it can respond. `/health/ready` also checks SQLite and model availability and returns 503 until both pass. The container smoke test distinguishes these outcomes; passing liveness does not prove a complete scanner.
+
+### 27.8 Request validation and exception safety
+
+The API catches FastAPI `RequestValidationError` and returns a limited JSON shape containing error location and type, rather than echoing arbitrary user text. Unexpected exceptions become a generic `internal_error` JSON with status 500. Such error masking improves information hygiene but doesn't make the underlying bug harmless; operators need safe server-side diagnostics.
+
+### 27.9 Development-only routes
+
+`/v2/lab` and `/v2/evaluation` are available only outside production mode. Those endpoints exercise synthetic test cases/fixture measurements and can be expensive with a real CPU model, so they shouldn't be represented as secure user-facing live-agent analytics or exposed unnecessarily.
+
+### 27.10 The retired routes
+
+`/v1/scan` and `/v1/guard/input` explicitly return HTTP 410 with migration guidance to `/v2/scan`. The old signature-detection semantics are not silently retained. Older `/v1/guard/action` and `/v1/guard/output` compatibility paths remain visible in the app source; new clients should use v2 for consistent model-only inspection and v2 authority contracts.
+
+### 27.11 The RAG inspect endpoint is not a permission grant
+
+`POST /v2/rag/inspect` accepts a limited list of content envelopes and calls `Guard.inspect_chunks` with a host-created context derived from configured authority. It is **not** a general permission engine for arbitrary database reads; the example `RagGateway` separately demonstrates permission filtering before retrieval. An application must not infer access rights from the API's ability to inspect submitted text.
+
+### 27.12 Audit logging and scan history
+
+`api/audit.py` configures limited diagnostic logging. `storage/sqlite.py` persists scan metadata, not prompt contents. Scan metadata fields are allowlisted, including decision, detection/model status, model hash, source/trust identifiers when present, risk level, policy ID, latency and inspection completeness.
+
+The table has `id`, timestamp `at`, `tenant` and JSON metadata. It is indexed by tenant and ID. Tenants see only their own records through `list(..., tenant=...)` and `clear(..., tenant=...)` when the API uses the correct trusted host context.
+
+### 27.13 SQLite creation and permission details
+
+The store creates parent directories with restrictive mode and opens the database using `O_NOFOLLOW` so an attacker-controlled symlink isn't transparently followed as a file. It sets mode 0600. It uses a mutex for operations and opens short-lived SQLite connections, prunes old records and caps requested list sizes.
+
+These are careful local-file behaviors, not distributed database guarantees. If the service is deployed across machines or tenants, choose and enforce a database model appropriate to the host's actual identity/isolation requirements.
+
+### 27.14 Retention and privacy
+
+By default, the store retains at most 500 records and prunes after about seven days, though those knobs can be configured within bounds. It excludes full input text, highlighted source content and secrets. A host may still log API requests elsewhere, so operators must also audit reverse proxy, access logs, browser telemetry and upstream agent traces.
+
+### 27.15 Example HTTP request lifecycle
+
+```text
+Browser clicks "Scan"
+  -> App.submit() constructs {text, source}
+  -> fetch('/v2/scan', POST, JSON, optional Bearer)
+  -> TrustedHost + rate + CORS middleware
+  -> authenticate()
+  -> InspectionRequestV2 validation
+  -> Guard.inspect()
+  -> InputPolicy outcome + evidence
+  -> SQLiteHistory.record(result.model_dump(), trusted_tenant)
+  -> return JSON body
+  -> frontend stores scan, scannedContent, capabilities
+  -> Evidence merges source spans and renders safe marked text
+```
+
+Note that the scanner does not execute proposed emails or read protected records on this route. Those are separate host-controlled boundaries.
+
+### 27.16 A host-operated authenticated synthetic chatbot
+
+`api/chatbot.py` creates a reference FastAPI host with a credential-to-`HostAuthority` map and fictional document map. It requires sufficiently long service credentials, uses constant-time bearer comparison, and maps a request to trusted authority before reading resources. It denies missing/cross-tenant/ungranted documents *without scanning their sensitive text*. It scans eligible documents, invokes the guarded read callback, then checks output release before returning the answer.
+
+This is a useful complete integration demonstration. It does not call a generative LLM or issue real enterprise credentials, so a developer must adapt it carefully for actual applications.
+
+### 27.17 How a developer should harden an exposed deployment
+
+Start by keeping the default loopback bind. If exposing the server on a network, add TLS termination, host-verified per-user identities, key management/rotation, resource grants derived from real ACLs, observability without raw prompt leakage, backing-store transactions for time-of-use checks, capacity/rate controls, strict origin/host settings, and safe error handling. The project documentation calls the software experimental precisely because these integrations and external adversarial tests are not automatically proven.
+
+## 28. Frontend implementation at component/state level
+
+### 28.1 Vite/React initialization
+
+`frontend/src/main.tsx` mounts React into the HTML root node. `App.tsx` imports `Evidence`, `Icon` and types. The file holds a small page list (`Scanner`, `Attack lab`, `Evaluation`, `History`, `System`) instead of using a more complex URL router. Tab changes update React state and fetch relevant backend data.
+
+### 28.2 Page and credential state
+
+At startup, the page is `Scanner`; content/scan fields are initially empty; source defaults to `retrieved_document`; capabilities is null until fetched. A single `credential` string resides in component memory, and only when nonempty is it sent as a bearer token. It is not stored in localStorage in this version.
+
+The sidebar's "API connected" indicator derives from successfully loaded capabilities. The topbar's "Model available" style derives separately from `capabilities.model_status === "AVAILABLE"`. This is a correct separation: an API can be reachable while its detector is unavailable.
+
+### 28.3 `request<T>()` and generics
+
+This helper is declared as an asynchronous generic function. A call such as `request<Scan>("/v2/scan", ...)` tells TypeScript what type the code expects the JSON result to match. It does not itself run Pydantic validation inside the browser; the server is the canonical schema/validation authority.
+
+On every fetch the helper adds `Content-Type: application/json`, optional bearer authorization and error translations for 401, 429, 404 and other non-OK HTTP statuses. Its URL paths are fixed by code rather than constructed from arbitrary untrusted response text.
+
+### 28.4 `perform(work)` controls busy/error UI
+
+The wrapper clears old errors, sets `busy=true`, awaits work, catches failures into a bounded error message, and resets `busy`. This reduces confusing overlapping results and makes errors visible without displaying raw backend stack traces.
+
+### 28.5 `load(selected)` chooses the data source
+
+| Selected tab | Endpoint loaded |
+|---|---|
+| Scanner | Uses existing scan state; capability loaded initially |
+| Attack lab | `GET /v2/lab` |
+| Evaluation | `GET /v2/evaluation` |
+| History | `GET /v2/history` |
+| System | `GET /v2/system/capabilities` |
+
+The current frontend requests data when a tab is selected. Thus the Evaluation and Attack lab pages may trigger actual server-side model scans. A slow local CPU can affect their response time; the frontend is not computing that data itself.
+
+### 28.6 `submit(event)`
+
+The form handler prevents the browser's default navigation, POSTs the current `content` and `source` to `/v2/scan`, saves the result in `scan`, copies the submitted text into `scannedContent`, then refreshes capabilities.
+
+Saving `scannedContent` separately matters: if the user edits the input textarea after scanning, the currently highlighted evidence should still refer to the **text actually scanned**, not the newly edited unsent string.
+
+### 28.7 Scanner page composition
+
+The scanner shows summary statistics and a form for source/content. On response it renders detection status, policy recommendation, completeness, latency, model status, detailed evidence/coverage and explanation. It is intentionally more informative than a flat red/green boolean because users need to distinguish model failures and warnings from a measured benign result.
+
+### 28.8 The visible evidence algorithm
+
+`Evidence.tsx` takes `text` and `spans`. It converts text via `Array.from` into codepoint elements; sorts spans by start; clamps each to valid bounds; merges overlapping/adjacent spans; renders each untouched prefix as text followed by a `<mark>` region; appends the remainder. React escapes text automatically.
+
+This algorithm avoids marking text out of range and avoids HTML injection by the text being displayed. Offsets that came from a Base64-derived view still map to a region in the *original encoded text*, consistent with preprocessing's evidence contract.
+
+### 28.9 Attack lab source of truth
+
+The Attack lab doesn't simulate a new LLM request in the browser. It requests server data from `/v2/lab`, which runs `evaluation/sandbox.py` against the configured model and local fictional callback. The frontend displays each case's prompt, detection decision, action decision, completion and attack-succeeded fields. Its statuses should be read as **synthetic local results**, not independent threat intelligence.
+
+### 28.10 Evaluation screen and metrics display
+
+`Report`, `Metric` and `Scenario` in `frontend/src/types.ts` define the expected API data shape. The Evaluation view can display dataset SHA/size, whether the report is complete, precision/recall/F1/FPR, coverage and latency. The app deliberately handles `INCOMPLETE` rather than showing fake scores; if the model is absent, there is no observed detector accuracy for that run.
+
+### 28.11 History view
+
+`History` records contain ID, time, policy decision, detection/model status, latency and inspection completeness. The History tab displays only these metadata fields. The Clear action issues `DELETE /v2/history` then updates local React state. It doesn't delete other tenants' data by request-declared tenant.
+
+### 28.12 System view
+
+The System tab exposes version, configured detector identity, model status, threshold, policy/action/output IDs, production flag and known limitations. It helps operators diagnose missing/corrupt model artifacts and prevents confusion between network/API health and actual loaded inference.
+
+### 28.13 Icon and CSS responsibilities
+
+`Icon.tsx` supplies local SVG artwork rather than loading icon HTML from untrusted prompts. `styles.css` provides layout, responsive behavior, grid/panel appearance, evidence highlighting, scanner result badges and sidebar. Security relevance: avoid user-controlled class names or arbitrary HTML injection; maintain semantic color and text indicators rather than relying on color alone.
+
+### 28.14 Type contract versioning
+
+The browser's `Scan` mirrors `InspectionResultV2` fields; `Capabilities` mirrors `/v2/system/capabilities`; `Report` describes the benchmark; `History` describes SQLite metadata. If a Python response field is renamed or removed, update TypeScript types, React display and tests together. Otherwise a TypeScript build may still compile but show undefined/incorrect values at runtime.
+
+### 28.15 Frontend testing
+
+`Evidence.test.tsx` is where to check offset handling, safe markup and highlight behavior. `App.test.tsx` checks basic app behavior with mocked API responses. Running `npm --prefix frontend test` and `npm --prefix frontend run build` catches failures sooner than a full Docker rebuild.
+
+### 28.16 Frontend boundaries not guaranteed by current code
+
+The credential UI is a simple bearer input, not a multi-user OAuth/login system. The dashboard's data is from the same local API, not independently validated detection research. A user running the site from a different origin or public domain must configure CORS, authentication, TLS and deployment networking safely. The app was tested on Fedora and Chromium in a local reference environment; this does not imply certification for all browsers/devices/accessibility requirements.
+
+## 29. Tests, CI, deployment support files and change-coupling reference
+
+### 29.1 `pyproject.toml` in context
+
+- `[build-system]` uses Hatchling.
+- `[project]` names `kjnlae`, package version `0.2.0`, Python ≥3.12, MIT license and core FastAPI/Pydantic/Uvicorn dependencies.
+- `[project.optional-dependencies]` includes developer tooling and separately the heavy ML stack.
+- `[project.scripts]` points `kjnlae` to `kjnlae.cli:main`.
+- `[tool.hatch.build.targets.wheel]` packages `src/kjnlae`.
+- `[tool.pytest.ini_options]` sets test paths and optional real-model marker.
+- `[tool.ruff]` enforces a 100-character line width and selected error/import/modernization rules.
+- `[tool.mypy]` uses strict type checking for Python 3.12 baseline and explicit third-party typing overrides.
+
+Changing dependencies or supported versions affects CPU inference, container image and GitHub Actions and must be verified in all three.
+
+### 29.2 Python lockfiles
+
+`requirements.lock` and `requirements-dev.lock` pin a tested dependency set for reliable installs. The project installs CPU-only PyTorch separately first to avoid unintentionally downloading large CUDA wheels on some platforms. Lockfiles do not remove the need for vulnerability updates; pip-audit checks known advisories.
+
+### 29.3 Dockerfile responsibilities
+
+The Dockerfile builds Python and frontend runtime pieces, installs pinned dependencies, constructs frontend assets and configures the service to run with limited privileges. The resulting image is not a model registry: Compose **mounts** a local reviewed artifact. If the model is absent or unreadable, health readiness reflects that. Avoid baking personal encryption identities or private model backups into image layers.
+
+### 29.4 Compose fields and their meaning
+
+| Compose key | Why it is there |
+|---|---|
+| `build: .` | Build local project image |
+| `127.0.0.1:8000:8000` | Bind API/UI to host loopback |
+| `KJNLAE_ENV` | Development/production config |
+| `KJNLAE_API_KEY` | Optional static bearer credential |
+| `KJNLAE_DATABASE=/app/var/audit.db` | Metadata store location |
+| `KJNLAE_MODEL_DIR=/app/model` | In-container artifact path |
+| `KJNLAE_MODEL_HASH` | Expected exact manifest identity |
+| `KJNLAE_MODEL_DIR_HOST:/app/model:ro` | Host artifact mounted read-only |
+| `audit:/app/var` | Persistent audit metadata volume |
+| `read_only: true` | Read-only container root filesystem |
+| `tmpfs /tmp` | Ephemeral writable scratch area |
+| `cap_drop: [ALL]` | Remove Linux capabilities |
+| `no-new-privileges` | Restrict privilege escalation |
+| `cpus: 4` | Approximate CPU allocation |
+| `mem_limit: 4g` | Container memory bound (different from the model worker's internal config) |
+| `pids_limit: 128` | Process/thread bound |
+
+Container resource limits require care. The model-worker configuration's virtual-address-space limit and container's actual memory limit are different mechanisms; a model that works on the host may still fail in a tight container, and should then report unready rather than returning fake clean scans.
+
+### 29.5 Local test-command reference
+
+```bash
+# From repo root in virtual environment:
+python -m pytest -q
+python -m ruff check .
+python -m ruff format --check .
+python -m mypy src/kjnlae
+
+# Frontend:
+npm --prefix frontend ci
+npm --prefix frontend test
+npm --prefix frontend run build
+
+# Single project gate:
+bash scripts/verify_all.sh
+
+# Actual-weight gate after exporting KJNLAE_MODEL_DIR and KJNLAE_MODEL_HASH:
+KJNLAE_VERIFY_RELEASE=1 \
+KJNLAE_TEST_MODEL_DIR="$KJNLAE_MODEL_DIR" \
+KJNLAE_TEST_MODEL_HASH="$KJNLAE_MODEL_HASH" \
+bash scripts/verify_all.sh
+```
+
+The exact lockfile/tool versions are documented in `README.md` and `scripts/verify_all.sh`. Running an individual Python test suite without the model is not equivalent to release-mode actual inference testing.
+
+### 29.6 Where v2 contract tests live
+
+- `tests/unit/test_v2_contracts.py` checks strict Pydantic and incomplete constraints.
+- `tests/unit/test_model_only_scan.py` checks scanned decision flows.
+- `tests/security/test_v2_policy.py` checks model-score/status-to-policy translation.
+- `tests/integration/test_api_v2.py` checks endpoint behavior with real FastAPI.
+- `frontend/src/types.ts` and frontend tests mirror selected response contracts.
+
+If you change the spelling/meaning of `model_status`, `detection_status`, `policy_decision`, evidence offsets or reason codes, update all these layers together and document compatibility consequences.
+
+### 29.7 Where public-model tests live
+
+`tests/test_model_download.py` uses a fake offline Hub client to verify successful file acquisition, manifest mismatch rejection, unsafe file inventory rejection, and refusal to overwrite an existing destination. Real public download was also performed on Fedora. The test doubles establish client logic in controlled cases; the public smoke establishes that the actual Hub artifact is downloadable, but neither is a production load test.
+
+### 29.8 Where source-provenance tests live
+
+`tests/training/test_dataset.py`, `tests/training/test_fit.py` and `tests/unit/test_training_augmentation.py` verify reviewed provenance, disjoint partitions, actual training behavior and deterministic augmentation. A future model improvement must preserve these invariants and add datasets ethically/lawfully.
+
+### 29.9 Where security-control tests live
+
+`tests/security/test_authorization.py`, `test_resource_grants.py`, `test_guarded_executor.py`, `test_output_release.py`, `test_no_detector_fallback.py`, `test_audit.py`, `test_middleware.py` and `test_v2_history.py` cover the separate permission, execution, output, audit and degraded-model paths. A bug in these files is often unrelated to the DistilBERT weights; classify the bug before suggesting retraining.
+
+### 29.10 GitHub Actions semantics
+
+The `quality` workflow has distinct backend Python 3.12/3.13, frontend and container jobs. CI runs core tests and audits; the no-model benchmark must remain explicitly incomplete. Code changes must pass on each supported Python version. The user additionally ran a successful Fedora real-weight release gate on the reviewed v0.2 artifact. A later documentation commit that triggers a fresh CI run doesn't retroactively alter the measured model metrics.
+
+### 29.11 The cost of each kind of change
+
+| Proposed change | Required consistency work |
+|---|---|
+| Change typo/docs only | Review rendered Markdown and internal links; CI may run automatically |
+| Add new API input field | Pydantic model, FastAPI handler, SDK examples, frontend type/tests |
+| Add new source category | Source type, CLI validation, model source-prefix assumptions, tests |
+| Add a new text transformation | `preprocessing.py`, mapping/coverage tests, timing/false-positive evaluation |
+| Change worker token budget | `LocalModelConfig`, `build_windows`, coverage tests, actual-model benchmark |
+| Change threshold | Recalibration on distinct data, new evaluated manifest/hash, public artifact link |
+| Retrain model | Dataset provenance, split hashes, fit/eval, manifest, public model version, benchmark |
+| Add tool operation | Schema, allowed tools, exact grant logic, approval, executor and output tests |
+| Modify resource catalog | Grant semantics, version race tests, host transactional adapter |
+| Change output policy | Output/recipient/resource tests, documented false positives |
+| Add frontend view | `App.tsx`, types, styling, API route and frontend tests |
+| Publish new model | Verified weight inventory, model card/attribution, new revision, downloader tests |
+
+### 29.12 "Same codebase" does not mean "same runtime"
+
+A project cloned by two people has the same Python source but may have different OS, Python packages, CPU resources, local model files or trusted grants. The detector needs an exact verified model; the host needs authentic authority; the frontend needs a reachable matching API. A complete bug report should include **which version/commit, Python environment, model manifest hash, relevant nonsecret deployment configuration, test command and observed status**. Do not include secrets or real confidential prompts.
+
+### 29.13 Why the archived v0.1 test map should not be used
+
+The archived guide mentions files such as `detection/rules.py` and optional NLP mode, and describes test paths removed/reorganized for v0.2. Those details remain historically accurate to v0.1, but are **not** reliable instructions for changing this release. Use the current GitHub `main` tree and this guide's v2 paths instead.
+
+### 29.14 Common contributor mistakes and their consequences
+
+| Mistake | Consequence |
+|---|---|
+| Assuming `/health/live` means ML ready | Calls may still be `INCOMPLETE` |
+| Treating a model score as an attack-success probability | Misleading product claims and threshold decisions |
+| Assuming `scan ALLOW` authorizes an agent tool | Unauthorized actions if host bypasses grants |
+| Generating `HostAuthority` from a prompt | Direct impersonation/privilege forgery |
+| Reusing human approval token | Violates one-action review semantics |
+| Ignoring catalog version changes | TOCTOU resource access |
+| Returning any generated text after `OutputGuard.inspect ALLOW` | Confuses content inspection with host-authorized release |
+| Overwriting pinned weights in place | Breaks reproducibility and active worker consistency |
+| Training on held-out benchmark rows | Invalidates independent model evaluation |
+| Hiding incomplete-model results | False claim that the security control worked |
+| Committing private training backups to public Git | Potential licensing/privacy and repository-bloat harm |
+| Calling six synthetic tests a real red-team exercise | Overstates evidence |
+| Treating deprecation warnings as fatal without checking failures | Confuses dependency maintenance with test outcome |
+
+---
