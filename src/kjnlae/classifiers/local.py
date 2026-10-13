@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from multiprocessing.connection import Connection
 from multiprocessing.process import BaseProcess
 from pathlib import Path
+from typing import Any, cast
 
 from kjnlae.classifiers.artifacts import verify_artifact
 from kjnlae.detection.preprocessing import InspectionView
@@ -105,7 +106,8 @@ def _local_worker(conn: Connection, cfg: LocalModelConfig) -> None:
         os.environ["OMP_NUM_THREADS"] = "4"
         resource.setrlimit(resource.RLIMIT_AS, (cfg.memory_mb * 1024**2,) * 2)
         import torch
-        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+        from transformers.models.auto.modeling_auto import AutoModelForSequenceClassification
+        from transformers.models.auto.tokenization_auto import AutoTokenizer
 
         artifact = verify_artifact(cfg.model_dir, cfg.manifest_hash)
         torch.set_num_threads(4)
@@ -114,7 +116,8 @@ def _local_worker(conn: Connection, cfg: LocalModelConfig) -> None:
             cfg.model_dir, local_files_only=True, trust_remote_code=False, use_fast=True
         )
         model = (
-            AutoModelForSequenceClassification.from_pretrained(
+            cast(Any, AutoModelForSequenceClassification)
+            .from_pretrained(
                 cfg.model_dir, local_files_only=True, trust_remote_code=False, use_safetensors=True
             )
             .to("cpu")

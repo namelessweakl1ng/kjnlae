@@ -10,7 +10,7 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from queue import Empty
-from typing import Any
+from typing import Any, cast
 
 from kjnlae.classifiers.artifacts import BASE_REVISION
 from kjnlae.training.probe import _cgroup_bytes, _worker_rss, check_resources
@@ -72,7 +72,9 @@ def _worker(
     try:
         os.environ["OMP_NUM_THREADS"] = "4"
         import torch
-        from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer
+        from transformers.models.auto.configuration_auto import AutoConfig
+        from transformers.models.auto.modeling_auto import AutoModelForSequenceClassification
+        from transformers.models.auto.tokenization_auto import AutoTokenizer
 
         started = time.monotonic()
         torch.manual_seed(cfg.seed)
@@ -83,13 +85,17 @@ def _worker(
         model_config.num_labels = 2
         model_config.id2label = {0: "NON_INJECTION", 1: "INJECTION"}
         model_config.label2id = {"NON_INJECTION": 0, "INJECTION": 1}
-        model = AutoModelForSequenceClassification.from_pretrained(
-            cfg.base_dir,
-            config=model_config,
-            local_files_only=True,
-            use_safetensors=True,
-            trust_remote_code=False,
-        ).to("cpu")
+        model = (
+            cast(Any, AutoModelForSequenceClassification)
+            .from_pretrained(
+                cfg.base_dir,
+                config=model_config,
+                local_files_only=True,
+                use_safetensors=True,
+                trust_remote_code=False,
+            )
+            .to("cpu")
+        )
         initial_dir = cfg.output_dir / "initial-control"
         initial_dir.mkdir(parents=True, exist_ok=True)
         model.save_pretrained(initial_dir, safe_serialization=True)

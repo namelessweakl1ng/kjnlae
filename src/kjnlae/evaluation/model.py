@@ -5,7 +5,7 @@ import json
 import time
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from kjnlae.classifiers.artifacts import BASE_REVISION, verify_artifact
 from kjnlae.classifiers.local import window_ranges
@@ -75,15 +75,20 @@ def _sha(path: Path) -> str:
 
 def _score_rows(model_dir: Path, rows: list[dict[str, Any]]) -> tuple[list[float], list[float]]:
     import torch
-    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+    from transformers.models.auto.modeling_auto import AutoModelForSequenceClassification
+    from transformers.models.auto.tokenization_auto import AutoTokenizer
 
     torch.set_num_threads(4)
     tokenizer = AutoTokenizer.from_pretrained(
         model_dir, local_files_only=True, trust_remote_code=False
     )
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_dir, local_files_only=True, trust_remote_code=False, use_safetensors=True
-    ).eval()
+    model = (
+        cast(Any, AutoModelForSequenceClassification)
+        .from_pretrained(
+            model_dir, local_files_only=True, trust_remote_code=False, use_safetensors=True
+        )
+        .eval()
+    )
     scores: list[float] = []
     latencies: list[float] = []
     for row in rows:

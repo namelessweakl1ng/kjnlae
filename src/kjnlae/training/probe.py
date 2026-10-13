@@ -9,7 +9,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from queue import Empty
-from typing import Any
+from typing import Any, cast
 
 from kjnlae.classifiers.artifacts import BASE_REVISION
 
@@ -62,7 +62,9 @@ def _probe_worker(config: ProbeConfig, rows: list[dict[str, Any]], queue: Any) -
     try:
         os.environ["OMP_NUM_THREADS"] = "4"
         import torch
-        from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer
+        from transformers.models.auto.configuration_auto import AutoConfig
+        from transformers.models.auto.modeling_auto import AutoModelForSequenceClassification
+        from transformers.models.auto.tokenization_auto import AutoTokenizer
 
         torch.manual_seed(config.seed)
         torch.set_num_threads(4)
@@ -74,7 +76,8 @@ def _probe_worker(config: ProbeConfig, rows: list[dict[str, Any]], queue: Any) -
         model_config.id2label = {0: "NON_INJECTION", 1: "INJECTION"}
         model_config.label2id = {"NON_INJECTION": 0, "INJECTION": 1}
         model = (
-            AutoModelForSequenceClassification.from_pretrained(
+            cast(Any, AutoModelForSequenceClassification)
+            .from_pretrained(
                 config.base_dir,
                 config=model_config,
                 local_files_only=True,
@@ -120,9 +123,13 @@ def _probe_worker(config: ProbeConfig, rows: list[dict[str, Any]], queue: Any) -
         tokenizer.save_pretrained(export_dir)
         export_seconds = time.monotonic() - export_started
         reload_started = time.monotonic()
-        reloaded = AutoModelForSequenceClassification.from_pretrained(
-            export_dir, local_files_only=True, use_safetensors=True, trust_remote_code=False
-        ).eval()
+        reloaded = (
+            cast(Any, AutoModelForSequenceClassification)
+            .from_pretrained(
+                export_dir, local_files_only=True, use_safetensors=True, trust_remote_code=False
+            )
+            .eval()
+        )
         with torch.inference_mode():
             smoke = tokenizer("Source: webpage\nContent:\nExample", return_tensors="pt")
             shape = list(reloaded(**smoke).logits.shape)
