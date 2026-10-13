@@ -14,9 +14,7 @@ from kjnlae.classifiers.download import download_verified_model
 
 def _source_files() -> dict[str, bytes]:
     files = {
-        "config.json": json.dumps(
-            {"id2label": {"0": "NON_INJECTION", "1": "INJECTION"}}
-        ).encode(),
+        "config.json": json.dumps({"id2label": {"0": "NON_INJECTION", "1": "INJECTION"}}).encode(),
         "tokenizer.json": b"{}",
         "model.safetensors": b"synthetic test-only bytes",
     }
@@ -40,9 +38,7 @@ def _fake_hub(monkeypatch: pytest.MonkeyPatch, files: dict[str, bytes]) -> None:
         path.write_bytes(files[filename])
         return str(path)
 
-    def download_snapshot(
-        *, allow_patterns: list[str], local_dir: Path, **kwargs: object
-    ) -> str:
+    def download_snapshot(*, allow_patterns: list[str], local_dir: Path, **kwargs: object) -> str:
         assert kwargs["token"] is False
         for filename in allow_patterns:
             (local_dir / filename).write_bytes(files[filename])
