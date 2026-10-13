@@ -102,7 +102,10 @@ def main(argv: list[str] | None = None) -> None:
                 args.repo, args.directory, revision=args.revision, manifest_sha256=args.hash
             )
             print(json.dumps(artifact.__dict__, default=str, indent=2))
-            print("Set KJNLAE_MODEL_DIR to the installed path and KJNLAE_MODEL_HASH to the pinned hash.")
+            print(
+                "Set KJNLAE_MODEL_DIR to the installed path "
+                "and KJNLAE_MODEL_HASH to the pinned hash."
+            )
         else:
             print(
                 json.dumps(
