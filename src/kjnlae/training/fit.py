@@ -72,7 +72,7 @@ def _worker(
     try:
         os.environ["OMP_NUM_THREADS"] = "4"
         import torch
-        from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer  # type: ignore[attr-defined]
+        from transformers import AutoConfig, AutoModelForSequenceClassification, AutoTokenizer
 
         started = time.monotonic()
         torch.manual_seed(cfg.seed)
