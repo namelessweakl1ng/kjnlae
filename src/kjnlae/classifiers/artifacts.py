@@ -1,13 +1,87 @@
 """Local model identity checks; runtime never downloads or loads pickle weights."""
 
+from __future__ import annotations
+
 import hashlib
 import json
+import os
+import shutil
+import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 BASE_MODEL = "distilbert/distilbert-base-uncased"
 BASE_REVISION = "12040accade4e8a0f71eabdb258fecc2e7e948be"
+PUBLIC_MODEL_REPO = "namelessweakling/kjnlae-distilbert-v0.2"
+PUBLIC_MODEL_REVISION = "d6f5f455a4bc9b2c4587fc7f3011385a871e3653"
+PUBLIC_MODEL_MANIFEST_SHA256 = "54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b"
+PUBLIC_MODEL_FILES = [
+    "manifest.json",
+    "config.json",
+    "model.safetensors",
+    "special_tokens_map.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "vocab.txt",
+]
+
+
+def default_model_dir() -> Path:
+    """Return a per-user model location without relying on a project checkout."""
+    if sys.platform == "win32":
+        root = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+    elif sys.platform == "darwin":
+        root = Path.home() / "Library" / "Application Support"
+    else:
+        root = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
+    return root / "kjnlae" / "models" / "reviewed-v0.2"
+
+
+def download_public_model(
+    destination: Path | None = None,
+    *,
+    repository: str = PUBLIC_MODEL_REPO,
+    revision: str = PUBLIC_MODEL_REVISION,
+    manifest_hash: str = PUBLIC_MODEL_MANIFEST_SHA256,
+) -> ArtifactManifest:
+    """Download a pinned public snapshot and install only after full hash verification.
+
+    An existing destination is never overwritten. The caller explicitly invokes
+    this network operation; inference itself remains offline.
+    """
+    from huggingface_hub import snapshot_download
+
+    target = destination or default_model_dir()
+    if target.exists() or target.is_symlink():
+        raise FileExistsError(f"Model destination already exists: {target}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(tempfile.mkdtemp(prefix=".kjnlae-model-", dir=target.parent))
+    try:
+        snapshot_download(
+            repo_id=repository,
+            revision=revision,
+            local_dir=temporary,
+            allow_patterns=PUBLIC_MODEL_FILES,
+        )
+        verified = verify_artifact(temporary, manifest_hash)
+        if target.exists() or target.is_symlink():
+            raise FileExistsError(f"Model destination already exists: {target}")
+        shutil.rmtree(temporary / ".cache", ignore_errors=True)
+        temporary.rename(target)
+        return ArtifactManifest(
+            target,
+            verified.sha256,
+            verified.artifact_version,
+            verified.base_revision,
+            verified.trained_steps,
+            verified.threshold,
+            verified.quality_status,
+        )
+    finally:
+        if temporary.exists():
+            shutil.rmtree(temporary)
 
 
 @dataclass(frozen=True)

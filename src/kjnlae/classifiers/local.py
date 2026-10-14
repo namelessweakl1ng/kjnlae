@@ -2,6 +2,7 @@
 
 import multiprocessing as mp
 import re
+import sys
 import threading
 import time
 from collections.abc import Sequence
@@ -101,10 +102,13 @@ def build_windows(
 def _local_worker(conn: Connection, cfg: LocalModelConfig) -> None:
     try:
         import os
-        import resource
-
         os.environ["OMP_NUM_THREADS"] = "4"
-        resource.setrlimit(resource.RLIMIT_AS, (cfg.memory_mb * 1024**2,) * 2)
+        # RLIMIT_AS is Linux-specific in practical use. Spawn and the hard
+        # inference deadline remain active on Windows and macOS.
+        if sys.platform == "linux":
+            import resource
+
+            resource.setrlimit(resource.RLIMIT_AS, (cfg.memory_mb * 1024**2,) * 2)
         import torch
         from transformers.models.auto.modeling_auto import AutoModelForSequenceClassification
         from transformers.models.auto.tokenization_auto import AutoTokenizer

@@ -6,7 +6,11 @@ from pathlib import Path
 from time import perf_counter
 from typing import Protocol
 
-from kjnlae.classifiers.artifacts import verify_artifact
+from kjnlae.classifiers.artifacts import (
+    PUBLIC_MODEL_MANIFEST_SHA256,
+    default_model_dir,
+    verify_artifact,
+)
 from kjnlae.classifiers.local import LocalClassifier, LocalInference, LocalModelConfig
 from kjnlae.context import TrustedSecurityContext
 from kjnlae.detection.preprocessing import InspectionView, prepare_views
@@ -25,6 +29,8 @@ class Classifier(Protocol):
 
 
 class Guard:
+    """Inspect bounded text with a verified local model; never grants tool authority."""
+
     def __init__(
         self,
         classifier: Classifier | None = None,
@@ -43,6 +49,11 @@ class Guard:
             manifest_hash = (
                 model_hash if model_hash is not None else os.getenv("KJNLAE_MODEL_HASH", "")
             )
+            if not directory and not manifest_hash:
+                installed = default_model_dir()
+                if installed.is_dir():
+                    directory = str(installed)
+                    manifest_hash = PUBLIC_MODEL_MANIFEST_SHA256
             self.classifier = None
             self.threshold = 0.5
             if directory and manifest_hash:
@@ -60,6 +71,12 @@ class Guard:
     def close(self) -> None:
         if isinstance(self.classifier, LocalClassifier):
             self.classifier.close()
+
+    def __enter__(self) -> "Guard":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
 
     def capabilities(self) -> dict[str, object]:
         return {
@@ -114,7 +131,7 @@ class Guard:
         outcome = self.policy.decide(
             inference, prepared.complete, request.source, trusted_context, self.threshold
         )
-        evidence = tuple(
+        windows = tuple(
             WindowEvidence(
                 view=window.view,
                 start=window.source_span[0],
@@ -123,15 +140,16 @@ class Guard:
                 model_hash=inference.model_hash,
             )
             for window in inference.windows
-            if window.score is not None
-            and inference.model_hash is not None
-            and window.score >= self.threshold
+            if window.score is not None and inference.model_hash is not None
         )
+        evidence = tuple(window for window in windows if window.score >= self.threshold)
         return InspectionResultV2(
             detection_status=outcome.detection_status,
             policy_decision=outcome.decision,
             model_status=inference.status,
             evidence=evidence,
+            windows=windows,
+            threshold=self.threshold if inference.model_hash is not None else None,
             coverage={"views": len(prepared.views), "windows": len(inference.windows)},
             reason_codes=outcome.reason_codes + prepared.diagnostics,
             policy_id=self.policy.id,

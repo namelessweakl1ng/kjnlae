@@ -39,6 +39,8 @@ class InspectionResultV2(StrictV2):
     policy_decision: Decision
     model_status: ModelStatus
     evidence: tuple[WindowEvidence, ...] = ()
+    windows: tuple[WindowEvidence, ...] = ()
+    threshold: float | None = Field(default=None, ge=0, le=1)
     coverage: dict[str, int] = Field(default_factory=dict)
     reason_codes: tuple[str, ...] = ()
     policy_id: str = "model-only-v2"
