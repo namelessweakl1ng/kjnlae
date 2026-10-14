@@ -25,6 +25,8 @@ from kjnlae.schemas_v2 import (
 
 
 class Classifier(Protocol):
+    """Minimal inference contract shared by the SDK and test adapters."""
+
     def classify_views(self, views: Sequence[InspectionView], source: Source) -> LocalInference: ...
 
 
@@ -73,6 +75,7 @@ class Guard:
                 self._configuration_error = "MODEL_CONFIG_INCOMPLETE"
 
     def close(self) -> None:
+        """Stop the local inference worker owned by this guard, if one exists."""
         if isinstance(self.classifier, LocalClassifier):
             self.classifier.close()
 
@@ -83,6 +86,7 @@ class Guard:
         self.close()
 
     def capabilities(self) -> dict[str, object]:
+        """Report local artifact/worker state without downloading a model."""
         return {
             "detector": "fine_tuned_local_transformer_only",
             "model_status": (
@@ -107,12 +111,14 @@ class Guard:
         }
 
     def scan(self, text: str, **context: object) -> InspectionResultV2:
+        """Validate a convenient SDK call, then use the same path as HTTP scans."""
         request = InspectionRequestV2.model_validate({"text": text, **context})
         return self.inspect(request)
 
     def inspect_chunks(
         self, chunks: Sequence[ContentEnvelope], trusted_context: TrustedSecurityContext
     ) -> list[InspectionResultV2]:
+        """Inspect each retrieved chunk while retaining host-provided context."""
         return [
             self.inspect(InspectionRequestV2(text=chunk.text, source=chunk.source), trusted_context)
             for chunk in chunks

@@ -86,6 +86,8 @@ def download_public_model(
 
 @dataclass(frozen=True)
 class ArtifactManifest:
+    """Verified identity and evaluation metadata for a local trained model."""
+
     path: Path
     sha256: str
     artifact_version: str

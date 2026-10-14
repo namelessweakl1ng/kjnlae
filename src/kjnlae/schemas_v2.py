@@ -11,22 +11,30 @@ ModelStatus = Literal["AVAILABLE", "MISSING", "UNAVAILABLE", "CORRUPTED", "TIMED
 
 
 class StrictV2(BaseModel):
+    """Immutable v2 contract that rejects unexpected request fields."""
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class ContentEnvelope(StrictV2):
+    """Untrusted content with origin metadata, not an authority claim."""
+
     text: str = Field(min_length=1, max_length=32768)
     source: Source = "user"
     origin_id: str | None = Field(default=None, max_length=256)
 
 
 class InspectionRequestV2(StrictV2):
+    """Bounded model-scan request; context_ref conveys no permissions."""
+
     text: str = Field(min_length=1, max_length=32768)
     source: Source = "user"
     context_ref: str | None = Field(default=None, max_length=128)
 
 
 class WindowEvidence(StrictV2):
+    """A scored inspection window with offsets in the original text."""
+
     view: str
     start: int = Field(ge=0)
     end: int = Field(ge=0)
@@ -35,6 +43,8 @@ class WindowEvidence(StrictV2):
 
 
 class InspectionResultV2(StrictV2):
+    """Model result and input-policy decision, separate from tool approval."""
+
     detection_status: DetectionStatus
     policy_decision: Decision
     model_status: ModelStatus
@@ -54,6 +64,7 @@ class InspectionResultV2(StrictV2):
 
     @model_validator(mode="after")
     def incomplete_is_not_clear(self) -> "InspectionResultV2":
+        """Prevent partial or failed inspection from becoming a clear result."""
         if self.detection_status == "INCOMPLETE" and self.policy_decision in {"ALLOW", "WARN"}:
             raise ValueError("Incomplete inspection requires review or block")
         if not self.inspection_complete and self.detection_status != "INCOMPLETE":
@@ -62,6 +73,8 @@ class InspectionResultV2(StrictV2):
 
 
 class AuthorizationResultV2(StrictV2):
+    """Decision about one proposed action; executed is false for HTTP preview."""
+
     decision: Decision
     reason: str
     action_digest: str

@@ -5,7 +5,10 @@ import logging
 
 
 class AuditFormatter(logging.Formatter):
+    """Emit allowlisted security metadata without prompts or resource IDs."""
+
     def format(self, record: logging.LogRecord) -> str:
+        """Serialize one sanitized event for structured application logs."""
         event = str(record.msg)
         if event not in {"http_result", "scan_decision", "action_decision", "output_decision"}:
             event = "security_event"
@@ -18,6 +21,7 @@ class AuditFormatter(logging.Formatter):
 
 
 def configure_audit() -> logging.Logger:
+    """Install one JSON handler for the privacy-bounded audit stream."""
     logger = logging.getLogger("kjnlae.audit")
     if not logger.handlers:
         handler = logging.StreamHandler()

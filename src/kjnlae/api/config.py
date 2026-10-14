@@ -18,6 +18,8 @@ from kjnlae.schemas import StrictModel
 
 
 class V2GrantFile(StrictModel):
+    """Trusted local-file grant specification, never accepted from scan JSON."""
+
     resource: str
     operation: Operation
     version: int
@@ -26,6 +28,8 @@ class V2GrantFile(StrictModel):
 
 
 class V2AuthorityFile(StrictModel):
+    """Deployment-owned principal, resource catalog and permitted tools."""
+
     principal: str
     tenant: str
     task: str
@@ -37,6 +41,8 @@ class V2AuthorityFile(StrictModel):
 
 @dataclass(frozen=True)
 class Settings:
+    """Validated server settings; production requires a pinned model and key."""
+
     production: bool = False
     api_key: str = ""
     rate_limit: int = 60
@@ -60,6 +66,7 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        """Read deployment configuration once when constructing the API."""
         return cls(
             production=os.getenv("KJNLAE_ENV") == "production",
             api_key=os.getenv("KJNLAE_API_KEY", ""),
@@ -76,6 +83,7 @@ class Settings:
         )
 
     def authority_v2(self) -> tuple[HostAuthority, ResourceCatalog]:
+        """Load host authority from a bounded local file, with no HTTP input."""
         if not self.authority_v2_path:
             return HostAuthority(
                 "api-service" if self.api_key else "local-analysis",

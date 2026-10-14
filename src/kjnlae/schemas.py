@@ -11,10 +11,14 @@ Source = Literal[
 
 
 class StrictModel(BaseModel):
+    """Reject unknown fields so text cannot smuggle undeclared authority."""
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class OutputInspection(StrictModel):
+    """Content-only output decision; use OutputGuard.release for resource data."""
+
     decision: Decision
     violations: list[str]
     policy_id: str = "output-v2"

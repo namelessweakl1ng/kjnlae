@@ -21,6 +21,8 @@ class _VisibleText(HTMLParser):
 
 
 class OutputGuard:
+    """Enforce known-secret, destination and release checks outside the model."""
+
     def __init__(
         self,
         secrets: tuple[str, ...] = (),
@@ -34,6 +36,7 @@ class OutputGuard:
         self.allowed_fields = allowed_fields
 
     def inspect(self, text: str, structured: dict[str, str] | None = None) -> OutputInspection:
+        """Check bounded output content; these patterns do not detect injection."""
         if len(text) + sum(len(v) for v in (structured or {}).values()) > 32768:
             raise ValueError("Output exceeds inspection limit")
         values = [text, *(structured or {}).values()]
@@ -60,6 +63,7 @@ class OutputGuard:
                     violations.append("Known sensitive value would be disclosed")
         for value in values:
             decoded = html.unescape(value)
+            # Find link syntax for destination enforcement, not attack scoring.
             links = re.findall(r'(?:https?://|javascript:|data:|//)[^\s<>"\x27)]+', decoded, re.I)
             links.extend(
                 re.findall(r'(?:href|src)\s*=\s*["\x27]([^"\x27]{1,1024})["\x27]', decoded, re.I)

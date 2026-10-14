@@ -27,21 +27,28 @@ from kjnlae.schemas_v2 import ContentEnvelope, InspectionRequestV2, InspectionRe
 
 
 class ActionRequestV2(StrictV2):
+    """Untrusted action proposal; authority comes from server configuration."""
+
     action: ProposedAction
 
 
 class OutputRequestV2(StrictV2):
+    """Bounded content-only output inspection request."""
+
     text: str = Field(max_length=32768)
     structured: dict[str, str] | None = None
 
     @model_validator(mode="after")
     def bounded_output(self) -> "OutputRequestV2":
+        """Cap text and structured values together, before output inspection."""
         if len(self.text) + sum(len(value) for value in (self.structured or {}).values()) > 32768:
             raise ValueError("Combined output exceeds supported limit")
         return self
 
 
 class OutputInspectionResponseV2(StrictV2):
+    """HTTP preview cannot authorize release or execute a tool."""
+
     inspection_decision: Literal["ALLOW", "BLOCK"]
     violations: list[str]
     release_authorized: Literal[False] = False
@@ -49,6 +56,8 @@ class OutputInspectionResponseV2(StrictV2):
 
 
 class RagInspectRequestV2(StrictV2):
+    """Bounded collection of untrusted chunks for model inspection."""
+
     chunks: list[ContentEnvelope] = Field(min_length=1, max_length=16)
 
 

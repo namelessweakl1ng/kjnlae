@@ -12,6 +12,8 @@ log = logging.getLogger("kjnlae.audit")
 
 
 class LimitsMiddleware:
+    """Bound request bodies and rate before FastAPI parses user content."""
+
     def __init__(self, app: ASGIApp, rate: int = 60, body_timeout: float = 10) -> None:
         self.app, self.rate = app, rate
         self.body_timeout = body_timeout

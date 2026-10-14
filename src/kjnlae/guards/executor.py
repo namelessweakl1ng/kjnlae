@@ -12,12 +12,16 @@ T = TypeVar("T")
 
 @dataclass(frozen=True)
 class ExecutionResult[T]:
+    """Distinguish a denied call from a callback with an uncertain outcome."""
+
     status: Literal["EXECUTED", "DENIED", "UNKNOWN"]
     reason: str
     value: T | None = None
 
 
 class GuardedExecutor:
+    """Execute only host callbacks that pass current resource authorization."""
+
     def __init__(self, gateway: ActionGateway, catalog: ResourceCatalog) -> None:
         self.gateway = gateway
         self.catalog = catalog
@@ -31,6 +35,7 @@ class GuardedExecutor:
         approval_token: str | None = None,
         controls_ready: bool = True,
     ) -> ExecutionResult[T]:
+        """Check grants and approval, recheck the resource, then invoke once."""
         authorization = self.gateway.authorize_v2(
             action,
             authority,

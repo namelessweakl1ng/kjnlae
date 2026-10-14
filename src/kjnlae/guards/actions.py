@@ -10,6 +10,8 @@ from kjnlae.schemas_v2 import AuthorizationResultV2
 
 
 class ActionGateway:
+    """Authorize proposed actions independently of prompt-injection scores."""
+
     def __init__(self, approval_ttl: float = 300, max_approvals: int = 1024) -> None:
         if not 0 < approval_ttl <= 3600 or not 1 <= max_approvals <= 10000:
             raise ValueError("Invalid approval limits")

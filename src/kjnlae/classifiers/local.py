@@ -20,6 +20,8 @@ from kjnlae.schemas_v2 import ModelStatus
 
 @dataclass(frozen=True)
 class ModelWindow:
+    """One scored token window mapped to offsets in the original input."""
+
     view: str
     source_span: tuple[int, int]
     score: float | None = None
@@ -27,6 +29,8 @@ class ModelWindow:
 
 @dataclass(frozen=True)
 class LocalInference:
+    """Worker result; incomplete status must never be treated as a clear scan."""
+
     status: ModelStatus
     inspection_complete: bool
     score: float | None = None
@@ -37,6 +41,8 @@ class LocalInference:
 
 @dataclass(frozen=True)
 class LocalModelConfig:
+    """Bounds for local CPU inference and the pinned model artifact."""
+
     model_dir: Path
     manifest_hash: str
     token_limit: int = 128
@@ -60,6 +66,7 @@ class LocalModelConfig:
 
 
 def window_ranges(length: int, width: int, overlap: int) -> tuple[tuple[int, int], ...]:
+    """Cover all tokens with overlapping windows, including the final tail."""
     if length < 0 or width <= 0 or overlap < 0 or overlap >= width:
         raise ValueError("Invalid window bounds")
     if length == 0:
@@ -203,6 +210,7 @@ class LocalClassifier:
         self._lock = threading.Lock()
 
     def close(self) -> None:
+        """Terminate the worker and release its pipe; safe to call repeatedly."""
         with self._lock:
             if self._process is not None:
                 if self._process.is_alive():
@@ -216,6 +224,7 @@ class LocalClassifier:
             self._process, self._conn = None, None
 
     def is_ready(self) -> bool:
+        """Whether an already-started worker is alive; this does not load it."""
         return self._process is not None and self._process.is_alive()
 
     def classify_views(self, views: Sequence[InspectionView], source: Source) -> LocalInference:
@@ -266,6 +275,7 @@ class LocalClassifier:
             return LocalInference("ERROR", False, reason="MODEL_WORKER_FAILED")
 
     def close_unlocked(self) -> None:
+        """Worker cleanup for callers that already hold the classifier lock."""
         if self._process is not None:
             if self._process.is_alive():
                 self._process.terminate()
