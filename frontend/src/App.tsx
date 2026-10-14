@@ -9,6 +9,10 @@ export function withinInputLimit(text: string) {
   return Array.from(text).length <= 32768;
 }
 
+export function isModelReady(capabilities: Capabilities | null, scan: Scan | null) {
+  return capabilities?.model_status === "AVAILABLE" && (scan === null || scan.model_status === "AVAILABLE");
+}
+
 function formatPercent(value: number | null | undefined) {
   return value == null ? "Unavailable" : `${(value * 100).toFixed(1)}%`;
 }
@@ -63,11 +67,16 @@ export default function App() {
       setScan(response);
       setSubmitted(content);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Inspection failed."); }
-    finally { setBusy(false); }
+    finally {
+      // A failed worker can become unavailable after the scan; never leave a green readiness indicator.
+      try { setCapabilities(await request<Capabilities>("/v2/system/capabilities")); }
+      catch { setCapabilities(null); }
+      setBusy(false);
+    }
   }
 
   const highlighted = selectedWindow === null ? scan?.evidence ?? [] : [scan?.windows[selectedWindow]].filter((x) => x != null);
-  const ready = capabilities?.model_status === "AVAILABLE";
+  const ready = isModelReady(capabilities, scan);
 
   return <div className="app-shell">
     <aside className="rail">
