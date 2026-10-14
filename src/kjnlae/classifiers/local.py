@@ -7,15 +7,26 @@ import threading
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
-from multiprocessing.connection import Connection
 from multiprocessing.process import BaseProcess
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 from kjnlae.classifiers.artifacts import verify_artifact
 from kjnlae.detection.preprocessing import InspectionView
 from kjnlae.schemas import Source
 from kjnlae.schemas_v2 import ModelStatus
+
+
+class _WorkerPipe(Protocol):
+    """Methods shared by POSIX Connection and Windows PipeConnection."""
+
+    def send(self, obj: Any) -> None: ...
+
+    def recv(self) -> Any: ...
+
+    def poll(self, timeout: float = 0.0) -> bool: ...
+
+    def close(self) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -107,7 +118,7 @@ def build_windows(
     return tuple(result)
 
 
-def _local_worker(conn: Connection, cfg: LocalModelConfig) -> None:
+def _local_worker(conn: _WorkerPipe, cfg: LocalModelConfig) -> None:
     """Load only verified local safetensors, then score every bounded view/window."""
     try:
         import os
@@ -126,7 +137,7 @@ def _local_worker(conn: Connection, cfg: LocalModelConfig) -> None:
         artifact = verify_artifact(cfg.model_dir, cfg.manifest_hash)
         torch.set_num_threads(4)
         torch.set_num_interop_threads(1)
-        tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer = cast(Any, AutoTokenizer).from_pretrained(
             cfg.model_dir, local_files_only=True, trust_remote_code=False, use_fast=True
         )
         model = (
@@ -206,7 +217,7 @@ class LocalClassifier:
     def __init__(self, config: LocalModelConfig) -> None:
         self.config = config
         self._process: BaseProcess | None = None
-        self._conn: Connection | None = None
+        self._conn: _WorkerPipe | None = None
         self._lock = threading.Lock()
 
     def close(self) -> None:

@@ -79,7 +79,7 @@ def _score_rows(model_dir: Path, rows: list[dict[str, Any]]) -> tuple[list[float
     from transformers.models.auto.tokenization_auto import AutoTokenizer
 
     torch.set_num_threads(4)
-    tokenizer = AutoTokenizer.from_pretrained(
+    tokenizer = cast(Any, AutoTokenizer).from_pretrained(
         model_dir, local_files_only=True, trust_remote_code=False
     )
     model = (
