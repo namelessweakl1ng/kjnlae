@@ -104,6 +104,12 @@ def _hash(path: Path) -> str:
 
 
 def verify_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
+    """Verify local model identity, training status, labels and every file digest.
+
+    Raises ValueError for missing, tampered, unevaluated or unsafe artifacts.
+    Callers performing inference supply a trusted manifest hash; ``None`` is
+    reserved for newly produced training artifacts before a pin is recorded.
+    """
     if path.is_symlink() or not path.is_dir():
         raise ValueError("Model directory must be a real local directory")
     manifest_path = path / "manifest.json"
@@ -117,15 +123,11 @@ def verify_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
         raise ValueError("Unexpected base model revision")
     if not isinstance(raw.get("trained_steps"), int) or raw["trained_steps"] <= 0:
         raise ValueError("Artifact is not trained")
-    if raw.get("evaluated") is True:
-        quality_status = raw.get("quality_status")
-        if quality_status != "EXPERIMENTAL":
-            raise ValueError("Invalid or missing model quality status")
-    elif raw.get("approved") is True:
-        # Historical manifests used approval for completed evaluation, not a quality gate.
-        quality_status = "LEGACY_EXPERIMENTAL"
-    else:
+    if raw.get("evaluated") is not True:
         raise ValueError("Model artifact has not completed evaluation")
+    quality_status = raw.get("quality_status")
+    if quality_status != "EXPERIMENTAL":
+        raise ValueError("Invalid or missing model quality status")
     threshold = raw.get("threshold")
     if not isinstance(threshold, (int, float)) or not 0 <= threshold <= 1:
         raise ValueError("Invalid calibration threshold")

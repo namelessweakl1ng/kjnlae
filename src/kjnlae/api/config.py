@@ -39,8 +39,6 @@ class V2AuthorityFile(StrictModel):
 class Settings:
     production: bool = False
     api_key: str = ""
-    database: str = "var/audit.db"
-    retention: int = 500
     rate_limit: int = 60
     cors_origins: tuple[str, ...] = ()
     allowed_hosts: tuple[str, ...] = ("localhost", "127.0.0.1", "testserver")
@@ -65,8 +63,6 @@ class Settings:
         return cls(
             production=os.getenv("KJNLAE_ENV") == "production",
             api_key=os.getenv("KJNLAE_API_KEY", ""),
-            database=os.getenv("KJNLAE_DATABASE", "var/audit.db"),
-            retention=int(os.getenv("KJNLAE_RETENTION", "500")),
             rate_limit=int(os.getenv("KJNLAE_RATE_LIMIT", "60")),
             cors_origins=tuple(filter(None, os.getenv("KJNLAE_CORS_ORIGINS", "").split(","))),
             allowed_hosts=tuple(

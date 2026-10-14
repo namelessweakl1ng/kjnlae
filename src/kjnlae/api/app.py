@@ -20,13 +20,10 @@ from kjnlae.api.audit import configure_audit
 from kjnlae.api.config import Settings
 from kjnlae.api.middleware import LimitsMiddleware
 from kjnlae.context import TrustedSecurityContext
-from kjnlae.evaluation.benchmark import benchmark
-from kjnlae.evaluation.sandbox import run_scenarios
 from kjnlae.guards.actions import ActionGateway
 from kjnlae.guards.output import OutputGuard
 from kjnlae.guards.resources import HostAuthority, ProposedAction, ResourceCatalog
 from kjnlae.schemas_v2 import ContentEnvelope, InspectionRequestV2, InspectionResultV2, StrictV2
-from kjnlae.storage.sqlite import SQLiteHistory
 
 
 class ActionRequestV2(StrictV2):
@@ -63,15 +60,21 @@ def create_app(
     resource_catalog: ResourceCatalog | None = None,
     guard_override: Guard | None = None,
 ) -> FastAPI:
+    """Build the optional HTTP adapter from deployment-owned security context.
+
+    Incoming JSON may propose text or an action but cannot create identity,
+    resource grants or approvals. The adapter never executes a tool.
+    """
     cfg = settings or Settings.from_env()
     audit = configure_audit()
-    guard = guard_override or Guard(model_dir=cfg.model_dir, model_hash=cfg.model_hash)
+    guard = guard_override or Guard(
+        model_dir=cfg.model_dir or None, model_hash=cfg.model_hash or None
+    )
     configured_authority, configured_catalog = cfg.authority_v2()
     host_authority = trusted_authority_v2 or configured_authority
     catalog = resource_catalog or configured_catalog
     actions = action_gateway or ActionGateway()
     outputs = OutputGuard(cfg.output_secrets, cfg.output_hosts)
-    history = SQLiteHistory(cfg.database, cfg.retention)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -92,7 +95,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(cfg.cors_origins),
-        allow_methods=["GET", "POST", "DELETE"],
+        allow_methods=["GET", "POST"],
         allow_headers=["Authorization", "Content-Type"],
     )
     app.add_middleware(LimitsMiddleware, rate=cfg.rate_limit)
@@ -133,16 +136,10 @@ def create_app(
 
     @app.get("/health/ready")
     def ready() -> JSONResponse:
-        try:
-            history.list(1, tenant=host_authority.tenant)
-            db_ok = True
-        except Exception:
-            db_ok = False
-        healthy = db_ok and controls_ready()
+        healthy = controls_ready()
         return JSONResponse(
             {
                 "status": "ready" if healthy else "not_ready",
-                "database": db_ok,
                 "model": guard.capabilities()["model_status"],
             },
             status_code=200 if healthy else 503,
@@ -164,10 +161,8 @@ def create_app(
         }
 
     @app.post("/v2/scan", response_model=InspectionResultV2, dependencies=protected)
-    @app.post("/v2/guard/input", response_model=InspectionResultV2, dependencies=protected)
     def scan(request: InspectionRequestV2) -> InspectionResultV2:
         result = guard.inspect(request)
-        history.record(result.model_dump(), tenant=host_authority.tenant)
         audit.info(
             "scan_decision",
             extra={
@@ -203,25 +198,6 @@ def create_app(
             host_authority.principal, host_authority.tenant, host_authority.task
         )
         return guard.inspect_chunks(request.chunks, context)
-
-    @app.get("/v2/history", dependencies=protected)
-    def get_history() -> list[dict[str, Any]]:
-        return history.list(tenant=host_authority.tenant)
-
-    @app.delete("/v2/history", dependencies=protected)
-    def delete_history() -> dict[str, bool]:
-        history.clear(tenant=host_authority.tenant)
-        return {"cleared": True}
-
-    if not cfg.production:
-
-        @app.get("/v2/lab", dependencies=protected)
-        def lab() -> list[dict[str, Any]]:
-            return run_scenarios(guard)
-
-        @app.get("/v2/evaluation", dependencies=protected)
-        def evaluation() -> dict[str, Any]:
-            return benchmark(guard)
 
     dist = Path(__file__).resolve().parents[3] / "frontend" / "dist"
     if not dist.exists():

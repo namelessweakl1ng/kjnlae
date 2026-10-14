@@ -1,22 +1,48 @@
-"""Trusted host integration, no real side effects. Run: python examples/authorization.py."""
+"""Synthetic host-owned approval flow. No external tool or account is contacted."""
 
-from kjnlae.guards.actions import ActionGateway, Authority, Grant
-from kjnlae.schemas import Action
+import time
 
-# Construct only from an authenticated user task through trusted application logic.
-action = Action(
+from kjnlae.guards.actions import ActionGateway
+from kjnlae.guards.resources import (
+    HostAuthority,
+    ProposedAction,
+    ResourceCatalog,
+    ResourceGrant,
+    ResourceRecord,
+)
+
+action = ProposedAction(
     tool="send_email",
+    tenant="demo",
     resource="public",
     destination="bob@example.test",
     parameters={"subject": "Summary", "body": "Public schedule"},
 )
-authority = Authority(
-    "alice", frozenset({"public"}), (Grant(action),), frozenset({"bob@example.test"})
+catalog = ResourceCatalog((ResourceRecord("public", "demo", "alice", 1, sensitive=False),))
+# Trusted host code builds this from authenticated identity and current resource state.
+authority = HostAuthority(
+    "alice",
+    "demo",
+    "Send public schedule",
+    frozenset({"send_email"}),
+    (
+        ResourceGrant(
+            "alice",
+            "demo",
+            "public",
+            "send_email",
+            1,
+            time.time() + 300,
+            frozenset({"bob@example.test"}),
+        ),
+    ),
+    frozenset({"bob@example.test"}),
 )
 gateway = ActionGateway()
-print(gateway.authorize(action, authority).model_dump())  # REQUIRE_REVIEW
-# In a real host, authenticate the reviewer and show THIS exact action before this call.
-# This example represents that trusted ceremony; no API caller can assert it occurred.
-token = gateway.approve(action, authority)
-print(gateway.authorize(action, authority, token).model_dump())  # ALLOW
-print(gateway.authorize(action, authority, token).model_dump())  # Replay requires review
+print(gateway.authorize_v2(action, authority, catalog).model_dump())  # REQUIRE_REVIEW
+# A trusted host must authenticate a distinct reviewer and display this exact action.
+token = gateway.approve_v2(action, authority, catalog, reviewer="reviewer")
+print(gateway.authorize_v2(action, authority, catalog, approval_token=token).model_dump())
+print(
+    gateway.authorize_v2(action, authority, catalog, approval_token=token).model_dump()
+)  # replay denied

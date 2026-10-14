@@ -80,6 +80,7 @@ def build_windows(
     overlap: int,
     max_windows: int,
 ) -> tuple[ModelWindow, ...] | None:
+    """Map every token window back to source offsets, or reject excess coverage."""
     if width <= 0 or overlap < 0 or overlap >= width or len(views) != len(tokenized):
         raise ValueError("Invalid token windows")
     result: list[ModelWindow] = []
@@ -100,8 +101,10 @@ def build_windows(
 
 
 def _local_worker(conn: Connection, cfg: LocalModelConfig) -> None:
+    """Load only verified local safetensors, then score every bounded view/window."""
     try:
         import os
+
         os.environ["OMP_NUM_THREADS"] = "4"
         # RLIMIT_AS is Linux-specific in practical use. Spawn and the hard
         # inference deadline remain active on Windows and macOS.
@@ -216,6 +219,7 @@ class LocalClassifier:
         return self._process is not None and self._process.is_alive()
 
     def classify_views(self, views: Sequence[InspectionView], source: Source) -> LocalInference:
+        """Run a complete timed scan or return an explicit unavailable status."""
         if not self.config.model_dir.exists():
             return LocalInference("MISSING", False, reason="MODEL_MISSING")
         if not self._lock.acquire(blocking=False):

@@ -62,6 +62,11 @@ class ActionGateway:
         approval_token: str | None = None,
         controls_ready: bool = True,
     ) -> AuthorizationResultV2:
+        """Check exact host-owned identity, grants, resource state and approval.
+
+        This only returns a decision. The trusted executor consumes an approval
+        while performing the approved callback, never during an HTTP preview.
+        """
         digest = hashlib.sha256(action.model_dump_json().encode()).hexdigest()
 
         def deny(reason: str) -> AuthorizationResultV2:
@@ -129,4 +134,3 @@ class ActionGateway:
             resource_tenant=record.tenant,
             resource_owner=record.owner,
         )
-

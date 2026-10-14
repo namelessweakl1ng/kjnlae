@@ -17,7 +17,8 @@ from kjnlae.guards.resources import (
 
 
 def test_v2_missing_model_is_explicit_and_v1_scan_gone(tmp_path):
-    with TestClient(create_app(Settings(database=str(tmp_path / "audit.db")))) as client:
+    settings = Settings(model_dir=str(tmp_path / "missing"), model_hash="a" * 64)
+    with TestClient(create_app(settings)) as client:
         response = client.post("/v2/scan", json={"text": "Hello"})
         assert response.status_code == 200
         assert response.json()["detection_status"] == "INCOMPLETE"
@@ -42,7 +43,7 @@ def test_v2_missing_model_is_explicit_and_v1_scan_gone(tmp_path):
 
 
 def test_v2_rejects_mode_and_forged_authority(tmp_path):
-    with TestClient(create_app(Settings(database=str(tmp_path / "audit.db")))) as client:
+    with TestClient(create_app(Settings())) as client:
         for payload in (
             {"text": "hello", "mode": "deterministic"},
             {"text": "hello", "principal": "admin"},
@@ -81,12 +82,10 @@ def test_v2_rejects_mode_and_forged_authority(tmp_path):
         assert result.json()["release_authorized"] is False
 
 
-
 def test_v2_production_auth(tmp_path):
     with pytest.raises(ValueError):
         Settings(production=True)
     settings = Settings(
-        database=str(tmp_path / "audit.db"),
         production=True,
         api_key="x" * 32,
         model_dir=str(tmp_path / "missing"),
@@ -132,7 +131,7 @@ def test_http_preview_cannot_consume_valid_host_approval(tmp_path):
     gateway = ActionGateway()
     token = gateway.approve_v2(action, authority, catalog, reviewer="reviewer")
     app = create_app(
-        Settings(database=str(tmp_path / "audit.db")),
+        Settings(),
         action_gateway=gateway,
         trusted_authority_v2=authority,
         resource_catalog=catalog,

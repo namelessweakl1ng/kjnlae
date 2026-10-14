@@ -103,6 +103,11 @@ class OutputGuard:
         *,
         controls_ready: bool = True,
     ) -> OutputInspection:
+        """Authorize release using host-owned recipient and resource provenance.
+
+        Request text cannot supply trusted grants. Incomplete model controls
+        block resource release even if lexical output checks find no violation.
+        """
         inspected = self.inspect(text, structured)
         violations = list(inspected.violations)
         if not controls_ready and (recipient is not None or resources):

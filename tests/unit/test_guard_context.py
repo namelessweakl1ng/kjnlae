@@ -1,8 +1,8 @@
 from kjnlae import Guard
 
 
-def test_guard_context_manager_closes_owned_classifier():
-    with Guard() as guard:
+def test_guard_context_manager_closes_owned_classifier(tmp_path):
+    with Guard(model_dir=str(tmp_path / "missing"), model_hash="a" * 64) as guard:
         assert guard.scan("A harmless sentence.").detection_status == "INCOMPLETE"
 
 

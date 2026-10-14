@@ -41,6 +41,7 @@ class Guard:
     ) -> None:
         self.policy = policy or InputPolicy()
         self._configuration_error = ""
+        self._model_missing = False
         self.classifier: Classifier | None = classifier
         if classifier is not None:
             self.threshold = threshold or 0.5
@@ -57,14 +58,17 @@ class Guard:
             self.classifier = None
             self.threshold = 0.5
             if directory and manifest_hash:
-                try:
-                    artifact = verify_artifact(Path(directory), manifest_hash)
-                    self.threshold = artifact.threshold
-                    self.classifier = LocalClassifier(
-                        LocalModelConfig(artifact.path, manifest_hash)
-                    )
-                except (OSError, ValueError, KeyError) as exc:
-                    self._configuration_error = type(exc).__name__
+                if not Path(directory).exists():
+                    self._model_missing = True
+                else:
+                    try:
+                        artifact = verify_artifact(Path(directory), manifest_hash)
+                        self.threshold = artifact.threshold
+                        self.classifier = LocalClassifier(
+                            LocalModelConfig(artifact.path, manifest_hash)
+                        )
+                    except (OSError, ValueError, KeyError) as exc:
+                        self._configuration_error = type(exc).__name__
             elif directory or manifest_hash:
                 self._configuration_error = "MODEL_CONFIG_INCOMPLETE"
 
@@ -82,7 +86,9 @@ class Guard:
         return {
             "detector": "fine_tuned_local_transformer_only",
             "model_status": (
-                "CORRUPTED"
+                "MISSING"
+                if self._model_missing
+                else "CORRUPTED"
                 if self._configuration_error
                 else "MISSING"
                 if self.classifier is None
@@ -104,9 +110,6 @@ class Guard:
         request = InspectionRequestV2.model_validate({"text": text, **context})
         return self.inspect(request)
 
-    def scan_request(self, request: InspectionRequestV2) -> InspectionResultV2:
-        return self.inspect(request)
-
     def inspect_chunks(
         self, chunks: Sequence[ContentEnvelope], trusted_context: TrustedSecurityContext
     ) -> list[InspectionResultV2]:
@@ -120,9 +123,16 @@ class Guard:
         request: InspectionRequestV2,
         trusted_context: TrustedSecurityContext | None = None,
     ) -> InspectionResultV2:
+        """Inspect all supported views and apply policy without granting authority.
+
+        ``trusted_context`` must originate in host code. Failure or incomplete
+        preprocessing/inference can never produce a cleared scan.
+        """
         started = perf_counter()
         prepared = prepare_views(request.text)
-        if self._configuration_error:
+        if self._model_missing:
+            inference = LocalInference("MISSING", False, reason="MODEL_MISSING")
+        elif self._configuration_error:
             inference = LocalInference("CORRUPTED", False, reason="ARTIFACT_INVALID")
         elif self.classifier is None:
             inference = LocalInference("MISSING", False, reason="MODEL_MISSING")
