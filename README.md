@@ -11,7 +11,6 @@ Use Python **3.12 or 3.13** and Node.js **22+**. The commands below start from a
 ```bash
 git clone https://github.com/namelessweakl1ng/kjnlae.git
 cd kjnlae
-git switch refactor/v0.3-developer-toolkit
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
@@ -36,7 +35,6 @@ Install Python 3.12, Git, and Node.js 22+ from their official installers, or run
 ```powershell
 git clone https://github.com/namelessweakl1ng/kjnlae.git
 Set-Location kjnlae
-git switch refactor/v0.3-developer-toolkit
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -61,7 +59,6 @@ On Apple Silicon or Intel, install Python 3.12, Git, and Node.js 22+ from offici
 ```bash
 git clone https://github.com/namelessweakl1ng/kjnlae.git
 cd kjnlae
-git switch refactor/v0.3-developer-toolkit
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
