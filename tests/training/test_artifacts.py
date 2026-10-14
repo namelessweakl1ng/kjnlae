@@ -62,3 +62,15 @@ def test_evaluated_artifact_requires_explicit_experimental_status(tmp_path: Path
     manifest_path.write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="quality status"):
         verify_artifact(tmp_path / "model", None)
+
+
+@pytest.mark.parametrize("threshold", [0, -0.1, 1.1, True])
+def test_invalid_calibration_threshold_is_rejected(tmp_path: Path, threshold: object) -> None:
+    """No approved artifact may produce a threshold that the policy cannot use."""
+    _artifact(tmp_path / "model")
+    path = tmp_path / "model" / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["threshold"] = threshold
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="calibration threshold"):
+        verify_artifact(tmp_path / "model", None)
