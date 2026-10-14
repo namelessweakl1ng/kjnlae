@@ -5,7 +5,7 @@ import os
 import urllib.error
 import urllib.request
 
-base = "http://127.0.0.1:8000"
+base = os.getenv("KJNLAE_SMOKE_BASE", "http://127.0.0.1:8000")
 with urllib.request.urlopen(base + "/health/live", timeout=5) as response:
     assert response.status == 200
 expect_model = os.getenv("KJNLAE_SMOKE_EXPECT_MODEL") == "1"

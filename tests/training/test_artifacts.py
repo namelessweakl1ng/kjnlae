@@ -20,7 +20,8 @@ def _artifact(path: Path) -> str:
         "artifact_version": "test-v2",
         "base_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
         "trained_steps": 10,
-        "approved": True,
+        "evaluated": True,
+        "quality_status": "EXPERIMENTAL",
         "threshold": 0.7,
         "files": {name: hashlib.sha256(content).hexdigest() for name, content in files.items()},
     }
@@ -32,7 +33,7 @@ def test_verified_artifact_checks_pinned_hash_and_files(tmp_path: Path) -> None:
     expected = _artifact(tmp_path / "model")
     artifact = verify_artifact(tmp_path / "model", expected)
     assert artifact.sha256 == expected
-    assert artifact.quality_status == "LEGACY_EXPERIMENTAL"
+    assert artifact.quality_status == "EXPERIMENTAL"
     (tmp_path / "model" / "model.safetensors").write_bytes(b"changed")
     with pytest.raises(ValueError, match="hash"):
         verify_artifact(tmp_path / "model", expected)
@@ -56,12 +57,20 @@ def test_evaluated_artifact_requires_explicit_experimental_status(tmp_path: Path
     _artifact(tmp_path / "model")
     manifest_path = tmp_path / "model" / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
-    del manifest["approved"]
-    manifest["evaluated"] = True
-    manifest["quality_status"] = "EXPERIMENTAL"
-    manifest_path.write_text(json.dumps(manifest))
     assert verify_artifact(tmp_path / "model", None).quality_status == "EXPERIMENTAL"
     del manifest["quality_status"]
     manifest_path.write_text(json.dumps(manifest))
     with pytest.raises(ValueError, match="quality status"):
+        verify_artifact(tmp_path / "model", None)
+
+
+@pytest.mark.parametrize("threshold", [0, -0.1, 1.1, True])
+def test_invalid_calibration_threshold_is_rejected(tmp_path: Path, threshold: object) -> None:
+    """No approved artifact may produce a threshold that the policy cannot use."""
+    _artifact(tmp_path / "model")
+    path = tmp_path / "model" / "manifest.json"
+    manifest = json.loads(path.read_text())
+    manifest["threshold"] = threshold
+    path.write_text(json.dumps(manifest))
+    with pytest.raises(ValueError, match="calibration threshold"):
         verify_artifact(tmp_path / "model", None)

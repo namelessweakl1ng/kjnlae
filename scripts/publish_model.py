@@ -11,13 +11,12 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from kjnlae.classifiers.artifacts import verify_artifact
-from kjnlae.classifiers.download import REVIEWED_V3_MANIFEST_SHA256
+from kjnlae.classifiers.artifacts import PUBLIC_MODEL_MANIFEST_SHA256, verify_artifact
 
 
 def prepare_public_files(model_dir: Path, stage: Path, repo_id: str) -> list[str]:
     """Copy exactly the manifest-listed artifact, manifest, and model card."""
-    verify_artifact(model_dir, REVIEWED_V3_MANIFEST_SHA256)
+    verify_artifact(model_dir, PUBLIC_MODEL_MANIFEST_SHA256)
     manifest = json.loads((model_dir / "manifest.json").read_text())
     filenames = ["manifest.json", *sorted(manifest["files"])]
     for name in filenames:
@@ -88,7 +87,7 @@ def main() -> None:
         revision = api.model_info(repo_id).sha
         print(f"\nPUBLIC MODEL: https://huggingface.co/{repo_id}")
         print(f"Hub commit revision: {revision}")
-        print(f"Verified manifest SHA-256: {REVIEWED_V3_MANIFEST_SHA256}")
+        print(f"Verified manifest SHA-256: {PUBLIC_MODEL_MANIFEST_SHA256}")
         print("Only the listed files were included. Keep all original training archives private.")
 
 

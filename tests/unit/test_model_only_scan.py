@@ -49,6 +49,14 @@ def test_positive_model_window_is_evidence_only() -> None:
     assert result.explanation
 
 
+def test_all_scored_windows_and_threshold_are_returned() -> None:
+    result = Guard(classifier=FixedClassifier(0.01), threshold=0.5).scan("Hello")
+    assert result.threshold == 0.5
+    assert len(result.windows) == 1
+    assert result.windows[0].score == 0.01
+    assert result.evidence == ()
+
+
 def test_v2_rejects_retired_mode() -> None:
     with pytest.raises(ValidationError):
         InspectionRequestV2(text="hello", mode="combined")

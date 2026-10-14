@@ -1,32 +1,37 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Evidence } from "./Evidence";
-import { Icon } from "./Icon";
-import type { Capabilities, History, Report, Scan, Scenario } from "./types";
+import { WindowScores } from "./WindowScores";
+import type { Capabilities, Scan } from "./types";
 
-const pages = ["Scanner", "Attack lab", "Evaluation", "History", "System"] as const;
-type Page = (typeof pages)[number];
 const sources = ["user", "retrieved_document", "webpage", "email", "attachment", "tool_response", "agent"];
 
-function Badge({ value }: { value: string }) {
-  return <span className={`badge badge-${value.toLowerCase().replaceAll("_", "-")}`}>{value.replaceAll("_", " ")}</span>;
+export function withinInputLimit(text: string) {
+  return Array.from(text).length <= 32768;
 }
-function number(value: number | undefined, digits = 1) {
-  return value === undefined ? "—" : `${(value * 100).toFixed(digits)}%`;
+
+export function isModelReady(capabilities: Capabilities | null, scan: Scan | null) {
+  return capabilities?.model_status === "AVAILABLE" && (scan === null || scan.model_status === "AVAILABLE");
+}
+
+function formatPercent(value: number | null | undefined) {
+  return value == null ? "Unavailable" : `${(value * 100).toFixed(1)}%`;
+}
+
+function Status({ value }: { value: string }) {
+  return <span className={`status status-${value.toLowerCase().replaceAll("_", "-")}`}>{value.replaceAll("_", " ")}</span>;
 }
 
 export default function App() {
-  const [page, setPage] = useState<Page>("Scanner");
   const [credential, setCredential] = useState("");
   const [content, setContent] = useState("");
-  const [scannedContent, setScannedContent] = useState("");
+  const [submitted, setSubmitted] = useState("");
   const [source, setSource] = useState("retrieved_document");
   const [scan, setScan] = useState<Scan | null>(null);
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
-  const [cases, setCases] = useState<Scenario[]>([]);
-  const [report, setReport] = useState<Report | null>(null);
-  const [history, setHistory] = useState<History[]>([]);
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
+  const [selectedWindow, setSelectedWindow] = useState<number | null>(null);
 
   async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const response = await fetch(path, {
@@ -36,145 +41,101 @@ export default function App() {
     if (!response.ok) {
       if (response.status === 401) throw new Error("Authentication required. Enter the API credential and reconnect.");
       if (response.status === 429) throw new Error("Rate limit reached. Try again shortly.");
-      if (response.status === 404) throw new Error("This feature is unavailable in the current deployment.");
-      throw new Error(`Request failed (${response.status}). Review the input and service status.`);
+      throw new Error(`Request failed (${response.status}). Check the input and server status.`);
     }
     return response.json() as Promise<T>;
   }
 
-  async function perform(work: () => Promise<void>) {
+  async function refresh() {
+    setChecking(true);
+    setError("");
+    try { setCapabilities(await request<Capabilities>("/v2/system/capabilities")); }
+    catch (cause) { setCapabilities(null); setError(cause instanceof Error ? cause.message : "Connection failed."); }
+    finally { setChecking(false); }
+  }
+
+  useEffect(() => { void refresh(); }, []);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setBusy(true);
     setError("");
-    try { await work(); }
-    catch (failure) { setError(failure instanceof Error ? failure.message : "Request failed."); }
-    finally { setBusy(false); }
+    setScan(null);
+    setSelectedWindow(null);
+    try {
+      const response = await request<Scan>("/v2/scan", { method: "POST", body: JSON.stringify({ text: content, source }) });
+      setScan(response);
+      setSubmitted(content);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Inspection failed."); }
+    finally {
+      // A failed worker can become unavailable after the scan; never leave a green readiness indicator.
+      try { setCapabilities(await request<Capabilities>("/v2/system/capabilities")); }
+      catch { setCapabilities(null); }
+      setBusy(false);
+    }
   }
 
-  async function load(selected: Page) {
-    setPage(selected);
-    await perform(async () => {
-      if (selected === "Attack lab") setCases(await request<Scenario[]>("/v2/lab"));
-      if (selected === "Evaluation") setReport(await request<Report>("/v2/evaluation"));
-      if (selected === "History") setHistory(await request<History[]>("/v2/history"));
-      if (selected === "System") setCapabilities(await request<Capabilities>("/v2/system/capabilities"));
-    });
-  }
+  const highlighted = selectedWindow === null ? scan?.evidence ?? [] : [scan?.windows[selectedWindow]].filter((x) => x != null);
+  const ready = isModelReady(capabilities, scan);
 
-  useEffect(() => {
-    void perform(async () => setCapabilities(await request<Capabilities>("/v2/system/capabilities")));
-  }, []);
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await perform(async () => {
-      const result = await request<Scan>("/v2/scan", { method: "POST", body: JSON.stringify({ text: content, source }) });
-      setScan(result);
-      setScannedContent(content);
-      setCapabilities(await request<Capabilities>("/v2/system/capabilities"));
-    });
-  }
-
-  async function clearHistory() {
-    await perform(async () => {
-      await request<{ cleared: boolean }>("/v2/history", { method: "DELETE" });
-      setHistory([]);
-    });
-  }
-
-  return <div className="shell">
-    <aside className="sidebar">
-      <a href="#main" className="brand" aria-label="kjnlae home">
+  return <div className="app-shell">
+    <aside className="rail">
+      <a className="brand" href="#main" aria-label="kjnlae scanner">
         <img src="/assets/logo.svg" width="38" height="38" alt="" />
-        <span>kjnlae<small>SECURITY GATEWAY</small></span>
+        <span>kjnlae<small>MODEL INSPECTION</small></span>
       </a>
-      <div className="nav-label">WORKSPACE</div>
-      <nav aria-label="Primary navigation">
-        {pages.map((item, index) => <button key={item} type="button" className={page === item ? "nav-active" : ""}
-          aria-current={page === item ? "page" : undefined} onClick={() => void load(item)}>
-          <Icon name={(["scan", "lab", "chart", "history", "settings"] as const)[index]} />{item}
-        </button>)}
-      </nav>
-      <div className="sidebar-footer">
-        <div className="connection"><span className={capabilities ? "signal signal-on" : "signal"} />{capabilities ? "API connected" : "API unavailable"}</div>
-        <label htmlFor="credential">API CREDENTIAL <span>session only</span></label>
-        <input id="credential" type="password" autoComplete="off" value={credential}
-          onChange={event => setCredential(event.target.value)} />
-        <button type="button" className="reconnect" onClick={() => void load("System")}>Reconnect</button>
+      <div className="rail-section"><span className="rail-label">WORKSPACE</span><strong className="rail-active">Scanner</strong></div>
+      <div className="rail-bottom">
+        <span className="rail-label">LOCAL SERVICE</span>
+        <div className="connection"><span className={`dot ${ready ? "on" : ""}`} />{checking ? "Connecting…" : capabilities ? `Model ${capabilities.model_status.toLowerCase()}` : "API unavailable"}</div>
+        <label htmlFor="credential">API credential <small>kept in this page only</small></label>
+        <input id="credential" type="password" autoComplete="off" value={credential} onChange={event => setCredential(event.target.value)} />
+        <button type="button" className="secondary dark" onClick={() => void refresh()} disabled={checking}>Reconnect</button>
       </div>
     </aside>
     <main id="main" className="main">
-      <header className="topbar"><span>Workspace <span className="crumb">/ {page}</span></span>
-        <span className="top-status"><span className={capabilities?.model_status === "AVAILABLE" ? "signal signal-on" : "signal signal-warn"} />
-          Model {capabilities?.model_status?.toLowerCase() ?? "unknown"}</span></header>
-      <div className="content">
-        <div className="page-intro"><div><div className="eyebrow">KJNLAE / {page.toUpperCase()}</div><h1>{page}</h1>
-          <p>{page === "Scanner" ? "Inspect untrusted content with the verified local model." :
-            page === "Attack lab" ? "Scripted attacks and the action boundary they reach." :
-            page === "Evaluation" ? "Measured fixture results, with coverage and provenance." :
-            page === "History" ? "Local metadata only. Submitted text is not stored." :
-            "Configured detection and independent security controls."}</p></div>
-          <span className="policy-chip">{capabilities?.policy ?? "MODEL REQUIRED"}</span></div>
-        {error && <div className="alert" role="alert">{error}</div>}
-
-        {page === "Scanner" && <>
-          <div className="stat-grid">
-            <div className="stat"><span>DETECTION PIPELINE</span><strong>Fine-tuned NLP</strong><small>Single model, no fallback</small></div>
-            <div className="stat"><span>MODEL STATUS</span><strong>{capabilities?.model_status ?? "Unknown"}</strong><small>Verified local artifact</small></div>
-            <div className="stat"><span>LAST DECISION</span><strong>{scan?.policy_decision ?? "—"}</strong><small>{scan?.detection_status?.replaceAll("_", " ") ?? "No scan yet"}</small></div>
-            <div className="stat"><span>COVERAGE</span><strong>{scan ? scan.inspection_complete ? "Complete" : "Incomplete" : "—"}</strong><small>{scan ? `${scan.coverage.windows} model window(s)` : "Awaiting input"}</small></div>
-          </div>
-          <div className="two-column">
-            <section className="panel"><div className="panel-heading"><div><div className="eyebrow">01 / INPUT</div><h2>Inspect content</h2></div><span>32,768 character limit</span></div>
-              <form onSubmit={event => void submit(event)}>
-                <label htmlFor="source">Source type</label>
-                <select id="source" value={source} onChange={event => setSource(event.target.value)}>{sources.map(item => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</select>
-                <label htmlFor="content">Untrusted content</label>
-                <textarea id="content" value={content} maxLength={32768} onChange={event => setContent(event.target.value)}
-                  placeholder="Paste a user message, retrieved passage, tool response, or email..." rows={13} required />
-                <div className="form-footer"><span>{content.length.toLocaleString()} / 32,768 characters</span>
-                  <button type="submit" className="primary" disabled={busy || !content.trim()}>{busy ? "Inspecting…" : "Run inspection"}</button></div>
-              </form></section>
-            <section className="panel result-panel"><div className="panel-heading"><div><div className="eyebrow">02 / RESULT</div><h2>Decision evidence</h2></div>{scan && <Badge value={scan.policy_decision} />}</div>
-              {!scan ? <div className="empty-state"><Icon name="shield" /><strong>No result yet</strong><p>Submit content to see the model decision and coverage.</p></div> : <>
-                <div className="result-status"><Badge value={scan.detection_status} /><span>{scan.latency_ms.toFixed(1)} ms</span></div>
-                <p className="result-copy">{scan.explanation}</p>
-                <div className="detail-grid"><div><span>MODEL SCORE</span><strong>{scan.model_score === null ? "Unavailable" : number(scan.model_score)}</strong></div>
-                  <div><span>INSPECTED VIEWS</span><strong>{scan.coverage.views}</strong></div><div><span>MODEL WINDOWS</span><strong>{scan.coverage.windows}</strong></div>
-                  <div><span>RISK LEVEL</span><strong>{scan.risk_level}</strong></div></div>
-                <div className="mitigation"><strong>Recommended action</strong><p>{scan.recommended_action}</p></div>
-              </>}</section>
-          </div>
-          {scan && <section className="panel evidence-panel"><div className="panel-heading"><div><div className="eyebrow">03 / SOURCE</div><h2>Evidence in original content</h2></div><span>{scan.evidence.length} model window(s) above threshold</span></div>
-            <Evidence text={scannedContent} spans={scan.evidence.map(({start, end}) => ({start, end}))} />
-            <p className="footnote">Highlights identify model windows; they do not isolate the exact malicious phrase. Model scores are not calibrated attack probabilities.</p></section>}
-        </>}
-
-        {page === "Attack lab" && <section className="panel"><div className="panel-heading"><div><div className="eyebrow">SYNTHETIC SANDBOX</div><h2>Boundary outcomes</h2></div><span>{cases.length} scenarios</span></div>
-          <p className="panel-description">Scripted proposals, synthetic data, and local callbacks. No live LLM or external destination is used.</p>
-          {cases.length === 0 ? <div className="empty-state">{busy ? "Running scenarios…" : "No scenarios available."}</div> :
-            <div className="case-list">{cases.map(item => <article className="case" key={item.id}>
-              <div className="case-top"><div><span className="eyebrow">{item.id}</span><h3>{item.task}</h3></div><Badge value={item.action_decision} /></div>
-              <div className="case-content"><div><span>UNTRUSTED INPUT</span><p>{item.input}</p></div><div><span>MODEL DECISION</span><strong>{item.detection_decision}</strong><small>{item.detection_status}</small></div><div><span>ACTION OUTCOME</span><strong>{item.action_decision}</strong><small>{item.action_reason}</small></div></div>
-            </article>)}</div>}</section>}
-
-        {page === "Evaluation" && <>{report ? <><div className="stat-grid">
-          <div className="stat"><span>FIXTURE CASES</span><strong>{report.dataset.count}</strong><small>{report.dataset.attack_count} labeled attacks</small></div>
-          <div className="stat"><span>MODEL COVERAGE</span><strong>{number(report.detector.coverage)}</strong><small>{report.detector.complete_count} / {report.detector.count} complete</small></div>
-          <div className="stat"><span>F1 SCORE</span><strong>{number(report.detector.f1)}</strong><small>{report.detector.status}</small></div>
-          <div className="stat"><span>ACTION PREVENTION</span><strong>{number(report.defense.unauthorized_action_prevention_rate)}</strong><small>Scripted sandbox only</small></div>
-          </div><div className="two-column"><section className="panel"><div className="panel-heading"><div><div className="eyebrow">DETECTION</div><h2>Fixture performance</h2></div><Badge value={report.detector.status} /></div>
-            {report.detector.status === "MEASURED" && report.detector.confusion_matrix ? <><div className="metric-row"><span>Precision <b>{number(report.detector.precision)}</b></span><span>Recall <b>{number(report.detector.recall)}</b></span><span>False positive rate <b>{number(report.detector.false_positive_rate)}</b></span></div>
-              <div className="matrix" aria-label="Confusion matrix"><div>TRUE POSITIVE<strong>{report.detector.confusion_matrix.tp}</strong></div><div>FALSE POSITIVE<strong>{report.detector.confusion_matrix.fp}</strong></div><div>FALSE NEGATIVE<strong>{report.detector.confusion_matrix.fn}</strong></div><div>TRUE NEGATIVE<strong>{report.detector.confusion_matrix.tn}</strong></div></div></> : <p className="alert inline">Accuracy metrics withheld: model inspection was incomplete.</p>}</section>
-            <section className="panel"><div className="panel-heading"><div><div className="eyebrow">DEFENSE</div><h2>Observed action outcomes</h2></div></div><div className="metric-list"><div><span>Attack success rate</span><strong>{number(report.defense.attack_success_rate)}</strong></div><div><span>Authorized completion</span><strong>{number(report.defense.authorized_task_completion_rate)}</strong></div><div><span>Benign task rejection</span><strong>{number(report.defense.benign_task_rejection_rate)}</strong></div></div><p className="footnote">{report.defense.simulation}</p></section></div>
-          <section className="panel"><div className="panel-heading"><div><div className="eyebrow">PROVENANCE</div><h2>Dataset details</h2></div></div><dl className="provenance"><div><dt>Name</dt><dd>{report.dataset.name}</dd></div><div><dt>SHA256</dt><dd className="mono">{report.dataset.sha256}</dd></div><div><dt>Scope</dt><dd>{report.dataset.limitations}</dd></div></dl></section></> : <div className="empty-state">{busy ? "Measuring fixture suite…" : "Evaluation unavailable."}</div>}</>}
-
-        {page === "History" && <section className="panel"><div className="panel-heading"><div><div className="eyebrow">LOCAL AUDIT</div><h2>Recent inspections</h2></div><button type="button" onClick={() => void clearHistory()} disabled={busy || history.length === 0}>Clear history</button></div>
-          {history.length === 0 ? <div className="empty-state">No local inspection metadata.</div> : <div className="table-scroll"><table><thead><tr><th>Time</th><th>Decision</th><th>Detection</th><th>Model</th><th>Latency</th></tr></thead><tbody>{history.map(item => <tr key={item.id}><td>{new Date(item.at * 1000).toLocaleString()}</td><td><Badge value={item.policy_decision} /></td><td>{item.detection_status}</td><td>{item.model_status}</td><td>{item.latency_ms.toFixed(1)} ms</td></tr>)}</tbody></table></div>}</section>}
-
-        {page === "System" && <div className="two-column"><section className="panel"><div className="panel-heading"><div><div className="eyebrow">RUNTIME</div><h2>Detection service</h2></div></div>
-          <div className="metric-list"><div><span>Model status</span><Badge value={capabilities?.model_status ?? "UNKNOWN"} /></div><div><span>Detector</span><strong>{capabilities?.detector ?? "Unavailable"}</strong></div><div><span>Threshold</span><strong>{capabilities?.threshold ?? "—"}</strong></div><div><span>Policy</span><strong>{capabilities?.policy ?? "—"}</strong></div><div><span>Version</span><strong>{capabilities?.version ?? "—"}</strong></div></div>
-          {capabilities?.model_config_error && <p className="alert inline">Artifact configuration error: {capabilities.model_config_error}</p>}</section>
-          <section className="panel"><div className="panel-heading"><div><div className="eyebrow">BOUNDARIES</div><h2>Security controls</h2></div></div><div className="metric-list"><div><span>Action authorization</span><strong>{capabilities?.action_policy ?? "—"}</strong></div><div><span>Output inspection</span><strong>{capabilities?.output_policy ?? "—"}</strong></div><div><span>Environment</span><strong>{capabilities?.production ? "Production" : "Local development"}</strong></div></div><ul className="limitations">{capabilities?.limitations.map(item => <li key={item}>{item}</li>)}</ul></section></div>}
+      <header className="topbar"><span>SECURITY / SCANNER</span><span className="top-model"><span className={`dot ${ready ? "on" : ""}`} />{checking ? "Checking model" : capabilities?.model_status ?? "Unknown"}</span></header>
+      <div className="workspace">
+        <div className="intro"><div><span className="eyebrow">LOCAL MODEL · NO REMOTE INFERENCE</span><h1>Inspect untrusted content</h1><p>See the model’s prediction, the policy decision, and every text window it scored.</p></div></div>
+        {error && <div className="notice error" role="alert">{error}</div>}
+        {!checking && capabilities && !ready && <div className="notice" role="status">Model {capabilities.model_status.toLowerCase()}. Install the verified artifact with <code>kjnlae model download</code>, then run <code>kjnlae doctor</code>. Scans cannot be cleared while inference is unavailable.</div>}
+        <div className="workspace-grid">
+          <section className="card input-card" aria-labelledby="input-heading">
+            <div className="card-head"><div><span className="eyebrow">01 / INPUT</span><h2 id="input-heading">Content to inspect</h2></div><span className="fine">32,768 characters max</span></div>
+            <form onSubmit={event => void submit(event)}>
+              <label htmlFor="source">Source</label>
+              <select id="source" value={source} onChange={event => setSource(event.target.value)}>{sources.map(item => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</select>
+              <label htmlFor="content">Untrusted content</label>
+              <textarea id="content" value={content} onChange={event => {
+                if (withinInputLimit(event.target.value)) setContent(event.target.value);
+                else setError("Input exceeds 32,768 characters.");
+              }} maxLength={65536} rows={13} required placeholder="Paste a message, retrieved passage, email, or tool response…" />
+              <div className="form-actions"><span>{Array.from(content).length.toLocaleString()} / 32,768</span><button className="primary" type="submit" disabled={busy || !content.trim()}>{busy ? "Inspecting…" : "Run inspection"}</button></div>
+            </form>
+          </section>
+          <section className="card result-card" aria-labelledby="result-heading">
+            <div className="card-head"><div><span className="eyebrow">02 / RESULT</span><h2 id="result-heading">Model prediction</h2></div>{scan && <Status value={scan.policy_decision} />}</div>
+            {busy ? <div className="empty" role="status"><span className="activity" />Running local inference. The result appears when the inspection and policy decision finish.</div> : !scan ? <div className="empty">Submit content to see a measured score and inspection coverage.</div> : <div className="result-body">
+              <div className="result-status"><Status value={scan.detection_status} /><span>{scan.model_status} · {scan.latency_ms.toFixed(1)} ms</span></div>
+              <div className="hero-score"><span>INJECTION-CLASS SCORE</span><strong>{formatPercent(scan.model_score)}</strong><div className="score-track" aria-label={`Model score ${formatPercent(scan.model_score)}; threshold ${formatPercent(scan.threshold)}`}>
+                {scan.model_score != null && <span className="score-fill" style={{ width: `${scan.model_score * 100}%` }} />}
+                {scan.threshold != null && <span className="threshold-line" style={{ left: `${scan.threshold * 100}%` }} />}
+              </div><small>Decision threshold {formatPercent(scan.threshold)} · model softmax score, not an attack probability</small></div>
+              <dl className="facts"><div><dt>Inspection</dt><dd>{scan.inspection_complete ? "Complete" : "Incomplete"}</dd></div><div><dt>Model windows</dt><dd>{scan.coverage.windows}</dd></div><div><dt>Views inspected</dt><dd>{scan.coverage.views}</dd></div><div><dt>Model identity</dt><dd className="mono">{scan.model_hash?.slice(0, 12) ?? "Unavailable"}</dd></div></dl>
+              <p className="result-copy">{scan.explanation}</p><div className="guidance"><strong>Recommended action</strong><p>{scan.recommended_action}</p></div>
+            </div>}
+          </section>
+        </div>
+        {scan && <div className="inspection-grid">
+          <section className="card" aria-labelledby="windows-heading"><div className="card-head"><div><span className="eyebrow">03 / MEASUREMENTS</span><h2 id="windows-heading">Inspected windows</h2></div><span className="fine">{scan.windows.length} scored</span></div>
+            {scan.windows.length && scan.threshold != null ? <WindowScores windows={scan.windows} threshold={scan.threshold} text={submitted} selected={selectedWindow ?? -1} onSelect={setSelectedWindow} /> : <p className="card-note">No complete model-window scores are available for this inspection.</p>}
+          </section>
+          <section className="card" aria-labelledby="evidence-heading"><div className="card-head"><div><span className="eyebrow">04 / SOURCE</span><h2 id="evidence-heading">Original content</h2></div><span className="fine">{selectedWindow === null ? "Above-threshold windows" : `Window ${selectedWindow + 1}`}</span></div>
+            <Evidence text={submitted} spans={highlighted.map(({ start, end }) => ({ start, end }))} />
+            <p className="card-note">Highlights map scored windows to the submitted text. They do not identify a causal phrase. Transformed views may map to a broader source span.</p>
+          </section>
+        </div>}
+        <footer>kjnlae is experimental. A scan is evidence for a decision; tool and data access still require independent authorization.</footer>
       </div>
     </main>
   </div>;

@@ -7,7 +7,6 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from kjnlae.guards.actions import Authority, Grant
 from kjnlae.guards.resources import (
     HostAuthority,
     Operation,
@@ -15,17 +14,12 @@ from kjnlae.guards.resources import (
     ResourceGrant,
     ResourceRecord,
 )
-from kjnlae.schemas import Action, StrictModel
-
-
-class AuthorityFile(StrictModel):
-    principal: str
-    owned_resources: frozenset[str]
-    destinations: frozenset[str] = frozenset()
-    actions: list[Action]
+from kjnlae.schemas import StrictModel
 
 
 class V2GrantFile(StrictModel):
+    """Trusted local-file grant specification, never accepted from scan JSON."""
+
     resource: str
     operation: Operation
     version: int
@@ -34,6 +28,8 @@ class V2GrantFile(StrictModel):
 
 
 class V2AuthorityFile(StrictModel):
+    """Deployment-owned principal, resource catalog and permitted tools."""
+
     principal: str
     tenant: str
     task: str
@@ -45,14 +41,13 @@ class V2AuthorityFile(StrictModel):
 
 @dataclass(frozen=True)
 class Settings:
+    """Validated server settings; production requires a pinned model and key."""
+
     production: bool = False
     api_key: str = ""
-    database: str = "var/audit.db"
-    retention: int = 500
     rate_limit: int = 60
     cors_origins: tuple[str, ...] = ()
     allowed_hosts: tuple[str, ...] = ("localhost", "127.0.0.1", "testserver")
-    authority_path: str = ""
     authority_v2_path: str = ""
     model_dir: str = ""
     model_hash: str = ""
@@ -71,17 +66,15 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        """Read deployment configuration once when constructing the API."""
         return cls(
             production=os.getenv("KJNLAE_ENV") == "production",
             api_key=os.getenv("KJNLAE_API_KEY", ""),
-            database=os.getenv("KJNLAE_DATABASE", "var/audit.db"),
-            retention=int(os.getenv("KJNLAE_RETENTION", "500")),
             rate_limit=int(os.getenv("KJNLAE_RATE_LIMIT", "60")),
             cors_origins=tuple(filter(None, os.getenv("KJNLAE_CORS_ORIGINS", "").split(","))),
             allowed_hosts=tuple(
                 os.getenv("KJNLAE_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
             ),
-            authority_path=os.getenv("KJNLAE_AUTHORITY_FILE", ""),
             authority_v2_path=os.getenv("KJNLAE_AUTHORITY_V2_FILE", ""),
             model_dir=os.getenv("KJNLAE_MODEL_DIR", ""),
             model_hash=os.getenv("KJNLAE_MODEL_HASH", ""),
@@ -89,19 +82,8 @@ class Settings:
             output_secrets=tuple(json.loads(os.getenv("KJNLAE_OUTPUT_SECRETS_JSON", "[]"))),
         )
 
-    def authority(self) -> Authority:
-        if not self.authority_path:
-            # No permissions by default, including development mode.
-            return Authority("api-service" if self.api_key else "local-analysis", frozenset(), ())
-        cfg = AuthorityFile.model_validate_json(Path(self.authority_path).read_text())
-        return Authority(
-            cfg.principal,
-            cfg.owned_resources,
-            tuple(Grant(a) for a in cfg.actions),
-            cfg.destinations,
-        )
-
     def authority_v2(self) -> tuple[HostAuthority, ResourceCatalog]:
+        """Load host authority from a bounded local file, with no HTTP input."""
         if not self.authority_v2_path:
             return HostAuthority(
                 "api-service" if self.api_key else "local-analysis",

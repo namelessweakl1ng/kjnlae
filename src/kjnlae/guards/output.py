@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 
 from kjnlae.detection.preprocessing import prepare_views
 from kjnlae.guards.resources import HostAuthority, ResourceCatalog
-from kjnlae.schemas import OutputResult
+from kjnlae.schemas import OutputInspection
 
 
 class _VisibleText(HTMLParser):
@@ -21,6 +21,8 @@ class _VisibleText(HTMLParser):
 
 
 class OutputGuard:
+    """Enforce known-secret, destination and release checks outside the model."""
+
     def __init__(
         self,
         secrets: tuple[str, ...] = (),
@@ -33,7 +35,8 @@ class OutputGuard:
         self.allowed_hosts = allowed_hosts
         self.allowed_fields = allowed_fields
 
-    def inspect(self, text: str, structured: dict[str, str] | None = None) -> OutputResult:
+    def inspect(self, text: str, structured: dict[str, str] | None = None) -> OutputInspection:
+        """Check bounded output content; these patterns do not detect injection."""
         if len(text) + sum(len(v) for v in (structured or {}).values()) > 32768:
             raise ValueError("Output exceeds inspection limit")
         values = [text, *(structured or {}).values()]
@@ -60,6 +63,7 @@ class OutputGuard:
                     violations.append("Known sensitive value would be disclosed")
         for value in values:
             decoded = html.unescape(value)
+            # Find link syntax for destination enforcement, not attack scoring.
             links = re.findall(r'(?:https?://|javascript:|data:|//)[^\s<>"\x27)]+', decoded, re.I)
             links.extend(
                 re.findall(r'(?:href|src)\s*=\s*["\x27]([^"\x27]{1,1024})["\x27]', decoded, re.I)
@@ -88,7 +92,7 @@ class OutputGuard:
                     violations.append("Generated destination is outside the output allowlist")
         if structured is not None and set(structured) - self.allowed_fields:
             violations.append("Unexpected structured output fields")
-        return OutputResult(
+        return OutputInspection(
             decision="BLOCK" if violations else "ALLOW", violations=list(dict.fromkeys(violations))
         )
 
@@ -102,7 +106,12 @@ class OutputGuard:
         catalog: ResourceCatalog,
         *,
         controls_ready: bool = True,
-    ) -> OutputResult:
+    ) -> OutputInspection:
+        """Authorize release using host-owned recipient and resource provenance.
+
+        Request text cannot supply trusted grants. Incomplete model controls
+        block resource release even if lexical output checks find no violation.
+        """
         inspected = self.inspect(text, structured)
         violations = list(inspected.violations)
         if not controls_ready and (recipient is not None or resources):
@@ -133,7 +142,7 @@ class OutputGuard:
                 for grant in authority.grants
             ):
                 violations.append("Output recipient lacks exact export grant")
-        return OutputResult(
+        return OutputInspection(
             decision="BLOCK" if violations else "ALLOW", violations=list(dict.fromkeys(violations))
         )
 

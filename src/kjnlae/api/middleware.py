@@ -10,8 +10,15 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 log = logging.getLogger("kjnlae.audit")
 
+# 32,768 allowed Unicode code points may need 12 bytes each in ASCII-escaped
+# JSON (e.g. \\ud83d\\ude00), plus the surrounding request fields. Keep a
+# strict byte cap while allowing every valid schema-sized scan input.
+MAX_REQUEST_BODY_BYTES = 512 * 1024
+
 
 class LimitsMiddleware:
+    """Bound request bodies and rate before FastAPI parses user content."""
+
     def __init__(self, app: ASGIApp, rate: int = 60, body_timeout: float = 10) -> None:
         self.app, self.rate = app, rate
         self.body_timeout = body_timeout
@@ -30,7 +37,7 @@ class LimitsMiddleware:
                         if event["type"] == "http.disconnect":
                             return
                         body.extend(event.get("body", b""))
-                        if len(body) > 131072:
+                        if len(body) > MAX_REQUEST_BODY_BYTES:
                             await JSONResponse({"error": "request_too_large"}, status_code=413)(
                                 scope, receive, send
                             )
@@ -43,7 +50,7 @@ class LimitsMiddleware:
                     scope, receive, send
                 )
                 return
-        if scope.get("path", "").startswith(("/v1/", "/v2/")):
+        if scope.get("path", "").startswith("/v2/") or scope.get("path") == "/chat":
             peer = str((scope.get("client") or ("unknown", 0))[0])
             now = time.monotonic()
             tokens, previous = self.peers.pop(peer, (float(self.rate), now))

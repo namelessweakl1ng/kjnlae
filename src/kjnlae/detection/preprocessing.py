@@ -10,6 +10,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class InspectionView:
+    """A safe text transformation plus character-to-original offset mapping."""
+
     name: str
     text: str
     mapping: tuple[tuple[int, int], ...]
@@ -17,11 +19,14 @@ class InspectionView:
 
 @dataclass(frozen=True)
 class PreparedInput:
+    """All bounded views and whether every supported transformation was covered."""
+
     views: tuple[InspectionView, ...]
     diagnostics: tuple[str, ...]
     complete: bool
 
 
+# These patterns find encodings for model inspection; they never classify attacks.
 _ENTITY = re.compile(r"&(?:\#[xX][0-9a-fA-F]{1,8}|\#[0-9]{1,8}|[a-zA-Z]{1,32});")
 _BASE64 = re.compile(r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{24,32768}={0,2}(?![A-Za-z0-9+/=])")
 
@@ -60,6 +65,7 @@ def _html_entities(text: str) -> InspectionView | None:
 
 
 def prepare_views(text: str) -> PreparedInput:
+    """Build bounded original/normalized/decoded views without executing text."""
     if not 1 <= len(text) <= 32768:
         raise ValueError("Input must contain 1..32768 characters")
     views = [InspectionView("original", text, tuple((i, i + 1) for i in range(len(text))))]

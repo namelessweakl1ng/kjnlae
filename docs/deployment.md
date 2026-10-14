@@ -1,16 +1,22 @@
 # Deployment
 
-Set `KJNLAE_MODEL_DIR` to the **verified local** fine-tuned artifact and `KJNLAE_MODEL_HASH` to the SHA256 of its `manifest.json`. Install CPU PyTorch 2.6.0, Transformers 4.51.3 and safetensors 0.8.0; see [Fedora installation](../README.md) and [artifact verification](model-training.md). The application never downloads weights at runtime. `kjnlae doctor` performs actual inference. `/health/live` means the process is running; `/health/ready` is 503 unless SQLite and the model worker are ready. A missing model still permits explicit incomplete scan responses and no sensitive execution.
+Install the public artifact explicitly with `kjnlae model download`, then run `kjnlae model verify` and `kjnlae doctor`. The default model directory is per-user and inference is offline. For an advanced artifact, set `KJNLAE_MODEL_DIR` and `KJNLAE_MODEL_HASH` to a local directory and its manifest SHA-256. `/health/live` means the process responds; `/health/ready` is 503 until the verified model worker is available. Missing weights still yield explicit incomplete scan results. See the [platform quickstarts](../README.md).
 
-Production requires `KJNLAE_ENV=production`, a random `KJNLAE_API_KEY` of at least 32 characters, pinned model directory/hash, allowed hosts and explicit CORS. Keep the server behind TLS, a real identity gateway and strict network controls. A static API key cannot represent different users or tenants. Supply per-user `HostAuthority` from verified credentials in embedded application code, or a restricted mode-0600 `KJNLAE_AUTHORITY_V2_FILE` for a single service identity. Never let prompt text or model output edit that file. Human approval issuance belongs to a trusted UI/backend ceremony and is intentionally absent from HTTP.
+Set `KJNLAE_ENV=production` for deployment. In that mode, startup requires an API key of at least 32 characters and an explicit artifact path/hash. The default host list allows only local names and the default CORS origin list is empty; configure both for the intended deployment before exposing it behind a trusted TLS reverse proxy and identity layer. A static API key authenticates the deployment, not end users. For one service principal, a bounded, mode-0600 `KJNLAE_AUTHORITY_V2_FILE` can supply server-owned grants; a multi-user host should inject verified per-user authority. Never let prompt or model text modify that file. Human approval issuance belongs to a trusted host UI/backend and is not an HTTP route.
 
-For local Compose, set in an uncommitted `.env`:
+A Python wheel contains the SDK and API but no compiled React assets. `kjnlae serve` reports **API only** when those assets are absent. The documented source quickstart builds `frontend/dist` before serving; the Docker image includes the built UI.
 
-```text
-KJNLAE_MODEL_DIR_HOST=./var/models/full-v0.2-v3-reviewed
-KJNLAE_MODEL_HASH=<sha256-of-manifest.json>
+For local Compose, download to a dedicated project-local directory and set a private `.env`:
+
+```bash
+kjnlae model download --directory ./var/models/reviewed-v0.2
 ```
 
-Then run `docker compose up --build -d` and check `curl http://127.0.0.1:8000/health/ready`. Compose mounts the model directory read-only, persists metadata in a volume, binds host port to `127.0.0.1`, runs as a non-root user with read-only root filesystem and drops Linux capabilities. The image includes CPU inference dependencies but no model weights. If no verified artifact is mounted, the container can be live but not ready; scans are incomplete. The cloud image build used its existing proxy CA as a BuildKit secret and a proxy hostname mapping; the resulting image passed readiness and HTTP smoke with real weights. Container UID 10001 must read the mounted directory and files. A host-only mode-700 artifact produces readiness 503; use a dedicated model copy or ACL granting that UID read access without changing the original artifact. Fresh Fedora/CI networking remains unverified.
+```text
+KJNLAE_MODEL_DIR_HOST=./var/models/reviewed-v0.2
+KJNLAE_MODEL_HASH=54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b
+```
 
-The body limit is 128 KiB; text is capped at 32,768 characters; model windows, decoding, worker memory/time and rate are bounded. Default SQLite metadata retention is 500 records/7 days; set `KJNLAE_RETENTION=0` to disable insertion. Restrict database and authority-file permissions, encrypt host storage if policy requires it, and avoid storing full prompts or secrets in reverse-proxy logs. This code does not provide TLS termination, per-user sessions or distributed approval storage. Approvals are process-local, one-use and lost at restart; multiple workers require an external reviewed approval store before enabling sensitive actions.
+Then run `docker compose up --build -d` and check `curl http://127.0.0.1:8000/health/ready`. Compose mounts that artifact read-only, binds host port to loopback, runs as non-root UID 10001 with a read-only root filesystem, and drops capabilities. The image has CPU inference dependencies but no model weights. The installed model directory is private by default; grant UID 10001 read/traverse access to **that dedicated public-artifact copy** (for example with an ACL) before expecting container readiness. Do not change permissions on private training data or backups. No SQLite audit volume is needed; structured logs omit prompts.
+
+HTTP JSON bodies are capped at 512 KiB; scan text is separately limited to 32,768 Unicode codepoints. Derived views, windows, inference time, and peer rate are bounded. Protect reverse-proxy logs from prompt bodies and secrets. This project does not provide TLS termination, per-user sessions, or durable distributed approval storage; approvals are process-local, one-use, and lost on restart. Multiple sensitive-action workers require a reviewed shared approval transaction before deployment.
