@@ -1,3 +1,4 @@
+import json
 import time
 
 import pytest
@@ -145,3 +146,22 @@ def test_http_preview_cannot_consume_valid_host_approval(tmp_path):
         action, authority, lambda _: "sent", approval_token=token
     )
     assert executed.status == "EXECUTED"
+
+
+def test_full_unicode_scan_is_not_rejected_by_http_body_limit(tmp_path):
+    """Valid 32,768-codepoint input must pass even with ASCII-escaped JSON."""
+    payload = json.dumps(
+        {"text": "😀" * 32768, "source": "retrieved_document"},
+        ensure_ascii=True,
+    ).encode("utf-8")
+    assert len(payload) > 131072
+    with TestClient(
+        create_app(Settings(model_dir=str(tmp_path / "missing"), model_hash="a" * 64))
+    ) as client:
+        response = client.post(
+            "/v2/scan",
+            content=payload,
+            headers={"Content-Type": "application/json"},
+        )
+    assert response.status_code == 200
+    assert response.json()["detection_status"] == "INCOMPLETE"
