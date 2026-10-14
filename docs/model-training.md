@@ -1,12 +1,12 @@
 # Reproduce the English CPU model
 
-These instructions produce a new **local** artifact. The model is not downloadable from this repository. Use Python 3.12+, four CPU cores, ample free disk and preferably 16–32 GiB RAM. The first cloud run used 660 TRAIN rows; the experimental follow-up used 924. Install CPU PyTorch and dependencies exactly as in the [README](../README.md). Do not train on held-out or regression cases or tune against them.
+These instructions produce a new **local** artifact. The reviewed inference artifact is available through `kjnlae model download`; these instructions reproduce new weights locally. Use Python 3.12+, four CPU cores, ample free disk and preferably 16–32 GiB RAM. The first cloud run used 660 TRAIN rows; the experimental follow-up used 924. Install CPU PyTorch and dependencies exactly as in the [README](../README.md). Do not train on held-out or regression cases or tune against them.
 
 1. Acquire the pinned Apache-2.0 base model explicitly:
 
 ```bash
 mkdir -p var/models var/data
-kjnlae model prepare-base var/models/base-distilbert
+python -m kjnlae.maintainer_cli prepare-base var/models/base-distilbert
 ```
 
 This requests `distilbert/distilbert-base-uncased` revision `12040accade4e8a0f71eabdb258fecc2e7e948be`. The downloaded directory must contain `model.safetensors`, tokenizer and config files. No runtime scan downloads weights.
@@ -42,7 +42,7 @@ print(import_deepset(Path('var/data/deepset-train.parquet'),
 print(import_deepset(Path('var/data/deepset-test.parquet'),
     Path('var/data/deepset-held_out_test.jsonl'), 'HELD_OUT_TEST'))
 PY
-kjnlae train prepare --source var/data/original-v2.jsonl \
+python -m kjnlae.maintainer_cli train prepare --source var/data/original-v2.jsonl \
   --source var/data/bipia-train.jsonl --source var/data/deepset-train.jsonl \
   --source var/data/deepset-held_out_test.jsonl --output var/data/prepared-v2 --seed 42
 ```
@@ -52,7 +52,7 @@ Confirm `var/data/prepared-v2/manifest.json` reports `TRAIN=660`, `VALIDATION=12
 4. Run the bounded feasibility probe before the full job. It runs at most 32 optimizer steps and 600 seconds, records load/step speed, memory and real parameter changes, exports safetensors and reloads them. Its output is **not** a detector artifact.
 
 ```bash
-HF_HUB_OFFLINE=1 kjnlae train probe --base var/models/base-distilbert \
+HF_HUB_OFFLINE=1 python -m kjnlae.maintainer_cli train probe --base var/models/base-distilbert \
   --train var/data/prepared-v2/train.jsonl --output var/models/probe-v2
 cat var/models/probe-v2/probe-report.json
 ```
@@ -62,12 +62,12 @@ If resources or session time are insufficient, stop. Do not silently reduce trai
 5. Fine-tune and evaluate only after a complete feasible probe. The fit process is bounded, uses batch 2, 128 tokens, AdamW at 2e-5, seed 42 and two epochs. It chooses the best checkpoint using VALIDATION only. Calibration chooses the threshold; the held-out test is evaluated afterward and compared with the seeded untrained-head control.
 
 ```bash
-HF_HUB_OFFLINE=1 kjnlae train fit --base var/models/base-distilbert \
+HF_HUB_OFFLINE=1 python -m kjnlae.maintainer_cli train fit --base var/models/base-distilbert \
   --train var/data/prepared-v2/train.jsonl \
   --validation var/data/prepared-v2/validation.jsonl \
   --output var/models/full-v0.2-public --epochs 2
 cat var/models/full-v0.2-public/fit-report.json
-HF_HUB_OFFLINE=1 kjnlae train evaluate --fit var/models/full-v0.2-public \
+HF_HUB_OFFLINE=1 python -m kjnlae.maintainer_cli train evaluate --fit var/models/full-v0.2-public \
   --prepared var/data/prepared-v2
 ```
 
@@ -78,7 +78,7 @@ If `fit-report.json` says `INCOMPLETE`, its output is not promoted. A slower CPU
 ```bash
 export KJNLAE_MODEL_DIR="$PWD/var/models/full-v0.2-public/best"
 export KJNLAE_MODEL_HASH="$(sha256sum "$KJNLAE_MODEL_DIR/manifest.json" | cut -d' ' -f1)"
-kjnlae model verify "$KJNLAE_MODEL_DIR" --hash "$KJNLAE_MODEL_HASH"
+kjnlae model verify --directory "$KJNLAE_MODEL_DIR" --hash "$KJNLAE_MODEL_HASH"
 kjnlae doctor
 KJNLAE_VERIFY_RELEASE=1 KJNLAE_TEST_MODEL_DIR="$KJNLAE_MODEL_DIR" \
   KJNLAE_TEST_MODEL_HASH="$KJNLAE_MODEL_HASH" bash scripts/verify_all.sh
@@ -93,16 +93,16 @@ Complete steps 1–3 above first. The 50-case independent fixture was frozen in 
 ```bash
 python -m kjnlae.training.augment --train var/data/prepared-v2/train.jsonl \
   --output var/data/deepset-benign-source-aug-v3.jsonl --count 200 --seed 43
-kjnlae train prepare --source var/data/original-v2.jsonl \
+python -m kjnlae.maintainer_cli train prepare --source var/data/original-v2.jsonl \
   --source var/data/deepset-train.jsonl --source var/data/bipia-train.jsonl \
   --source datasets/fixtures/v0.2-benign-train.jsonl \
   --source var/data/deepset-benign-source-aug-v3.jsonl \
   --source var/data/deepset-held_out_test.jsonl --output var/data/prepared-v3 --seed 42
-HF_HUB_OFFLINE=1 kjnlae train fit --base var/models/base-distilbert \
+HF_HUB_OFFLINE=1 python -m kjnlae.maintainer_cli train fit --base var/models/base-distilbert \
   --train var/data/prepared-v3/train.jsonl \
   --validation var/data/prepared-v3/validation.jsonl \
   --output var/models/full-v0.2-v3-600 --epochs 2 --deadline 600
-HF_HUB_OFFLINE=1 kjnlae train evaluate --fit var/models/full-v0.2-v3-600 \
+HF_HUB_OFFLINE=1 python -m kjnlae.maintainer_cli train evaluate --fit var/models/full-v0.2-v3-600 \
   --prepared var/data/prepared-v3
 ```
 
@@ -113,12 +113,12 @@ To use **this** local candidate, install or copy the entire `best` directory and
 ```bash
 export KJNLAE_MODEL_DIR="$PWD/var/models/full-v0.2-v3-reviewed"
 export KJNLAE_MODEL_HASH="$(sha256sum "$KJNLAE_MODEL_DIR/manifest.json" | cut -d' ' -f1)"
-kjnlae model verify "$KJNLAE_MODEL_DIR" --hash "$KJNLAE_MODEL_HASH"
+kjnlae model verify --directory "$KJNLAE_MODEL_DIR" --hash "$KJNLAE_MODEL_HASH"
 kjnlae doctor
-kjnlae benchmark --dataset datasets/fixtures/v0.2-independent-eval.json \
+python -m kjnlae.maintainer_cli benchmark --dataset datasets/fixtures/v0.2-independent-eval.json \
   --output reports/independent-v0.2-v3
 KJNLAE_VERIFY_RELEASE=1 KJNLAE_TEST_MODEL_DIR="$KJNLAE_MODEL_DIR" \
   KJNLAE_TEST_MODEL_HASH="$KJNLAE_MODEL_HASH" bash scripts/verify_all.sh
 ```
 
-The executed cloud candidate's manifest hash is `54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b`. Its local weights are ignored by Git, but the reviewed [v0.2 weights are now publicly downloadable from Hugging Face](https://huggingface.co/namelessweakling/kjnlae-distilbert-v0.2) and the artifact plus noncommitted reproducibility inputs have been backed up separately, restored and verified on Fedora. See [the public model release guide](public-model-release.md) for checksum-pinned installation. The old encrypted backup does not contain these v3 weights.
+The executed cloud candidate's manifest hash is `54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b`. Its local weights are ignored by Git. Preserve any new artifact and its `fit-report.json`, `evaluation-report.json`, prepared manifest and generated augmentation file separately. The published reviewed artifact has its own pinned manifest; do not overwrite it during reproduction.

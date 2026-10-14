@@ -11,11 +11,15 @@ from kjnlae.schemas_v2 import InspectionResultV2
 
 
 class Scanner(Protocol):
+    """Small scanner contract so retrieval does not depend on HTTP."""
+
     def scan(self, text: str, **context: object) -> InspectionResultV2: ...
 
 
 @dataclass(frozen=True)
 class RagChunk:
+    """Retrieved document text with host-owned tenant/resource identity."""
+
     id: str
     resource: str
     tenant: str
@@ -25,12 +29,16 @@ class RagChunk:
 
 @dataclass(frozen=True)
 class RetrievalResult:
+    """Authorized, scanned chunks and IDs withheld after scanning."""
+
     chunks: tuple[RagChunk, ...]
     citations: tuple[str, ...]
     withheld: tuple[str, ...]
 
 
 class RagGateway:
+    """Apply resource grants before exposing retrieved text to the model."""
+
     def __init__(
         self, chunks: Sequence[RagChunk], guard: Scanner, catalog: ResourceCatalog
     ) -> None:
@@ -44,10 +52,12 @@ class RagGateway:
         context: TrustedSecurityContext,
         grants: tuple[ResourceGrant, ...],
     ) -> RetrievalResult:
+        """Retrieve by title, then enforce ACL and complete model inspection."""
         if not 1 <= len(query) <= 4096:
             raise ValueError("Query size outside supported range")
         if len(self.chunks) > 256:
             raise ValueError("Retrieval set exceeds complete inspection budget")
+        # Word matching only selects candidate titles; it is not injection detection.
         words = set(re.findall(r"\w+", query.casefold()))
         accepted: list[RagChunk] = []
         withheld: list[str] = []

@@ -5,13 +5,13 @@ import sys
 
 import pytest
 
-from kjnlae.cli import _parser, main
+from kjnlae.maintainer_cli import _parser, main
 
 
 def test_cli_fit_incomplete_is_failure(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ):
-    monkeypatch.setattr("kjnlae.cli.fit", lambda _cfg: {"status": "INCOMPLETE"})
+    monkeypatch.setattr("kjnlae.maintainer_cli.fit", lambda _cfg: {"status": "INCOMPLETE"})
     monkeypatch.setattr(
         sys,
         "argv",
@@ -73,10 +73,10 @@ def test_cli_explicit_incomplete_and_retired_mode(tmp_path):
         text=True,
         env=environment,
     )
-    assert retired.returncode == 2 and "removed" in retired.stderr
+    assert retired.returncode == 2 and "unrecognized arguments" in retired.stderr
     report = tmp_path / "report"
     result = subprocess.run(
-        base + ["benchmark", "--output", str(report)],
+        [sys.executable, "-m", "kjnlae.maintainer_cli", "benchmark", "--output", str(report)],
         capture_output=True,
         text=True,
         env=environment,

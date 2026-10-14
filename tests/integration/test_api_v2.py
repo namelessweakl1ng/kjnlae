@@ -17,13 +17,14 @@ from kjnlae.guards.resources import (
 
 
 def test_v2_missing_model_is_explicit_and_v1_scan_gone(tmp_path):
-    with TestClient(create_app(Settings(database=str(tmp_path / "audit.db")))) as client:
+    settings = Settings(model_dir=str(tmp_path / "missing"), model_hash="a" * 64)
+    with TestClient(create_app(settings)) as client:
         response = client.post("/v2/scan", json={"text": "Hello"})
         assert response.status_code == 200
         assert response.json()["detection_status"] == "INCOMPLETE"
         assert response.json()["model_status"] == "MISSING"
         assert response.json()["policy_decision"] != "ALLOW"
-        assert client.post("/v1/scan", json={"text": "Hello"}).status_code == 410
+        assert client.post("/v1/scan", json={"text": "Hello"}).status_code == 404
         assert client.get("/health/ready").status_code == 503
         assert (
             client.get("/v2/system/capabilities").json()["detector"]
@@ -42,7 +43,7 @@ def test_v2_missing_model_is_explicit_and_v1_scan_gone(tmp_path):
 
 
 def test_v2_rejects_mode_and_forged_authority(tmp_path):
-    with TestClient(create_app(Settings(database=str(tmp_path / "audit.db")))) as client:
+    with TestClient(create_app(Settings())) as client:
         for payload in (
             {"text": "hello", "mode": "deterministic"},
             {"text": "hello", "principal": "admin"},
@@ -79,23 +80,12 @@ def test_v2_rejects_mode_and_forged_authority(tmp_path):
         result = client.post("/v2/guard/output", json={"text": "Ordinary output"})
         assert result.status_code == 200
         assert result.json()["release_authorized"] is False
-        assert (
-            client.post(
-                "/v1/guard/action",
-                json={
-                    "action": {"tool": "send_email", "resource": "r"},
-                    "approval_token": "forged",
-                },
-            ).status_code
-            == 422
-        )
 
 
 def test_v2_production_auth(tmp_path):
     with pytest.raises(ValueError):
         Settings(production=True)
     settings = Settings(
-        database=str(tmp_path / "audit.db"),
         production=True,
         api_key="x" * 32,
         model_dir=str(tmp_path / "missing"),
@@ -141,7 +131,7 @@ def test_http_preview_cannot_consume_valid_host_approval(tmp_path):
     gateway = ActionGateway()
     token = gateway.approve_v2(action, authority, catalog, reviewer="reviewer")
     app = create_app(
-        Settings(database=str(tmp_path / "audit.db")),
+        Settings(),
         action_gateway=gateway,
         trusted_authority_v2=authority,
         resource_catalog=catalog,

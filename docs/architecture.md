@@ -1,23 +1,22 @@
 # Architecture
 
 ```mermaid
-flowchart TD
-  S[User / web / email / RAG / tool content] --> P[Bounded preprocessing]
-  P --> M[Verified local DistilBERT worker]
-  M --> D[InputPolicy: ALLOW / WARN / BLOCK / REQUIRE_REVIEW]
-  M --> F[INCOMPLETE on failure or partial coverage]
-  A[Model-proposed action] --> G[ActionGateway]
-  T[Host-authenticated principal, tenant, resource grants] --> G
-  H[Distinct human review] --> G
-  G --> E[GuardedExecutor and current resource version]
-  E --> O[OutputGuard release]
-  T --> O
+flowchart LR
+  Text[Untrusted text] --> Prep[Bounded source-mapped views]
+  Prep --> Model[Verified local DistilBERT worker]
+  Model --> Policy[Input decision or INCOMPLETE]
+  Host[Authenticated host identity and intent] --> Grants[Resource grants and catalog]
+  Proposal[Proposed tool call] --> Gateway[ActionGateway]
+  Grants --> Gateway
+  Gateway --> Exec[GuardedExecutor, version recheck]
+  Exec --> Release[OutputGuard.release]
+  Host --> Release
 ```
 
-`Guard` is a reusable Python library and owns no tool execution. It keeps original input, creates bounded normalized/decoded views with source maps, and sends **all** supported views and token windows to a separate timed CPU worker using a verified local safetensors artifact. Input policy translates complete model evidence into a decision. It never imports the removed v0.1 rule detector. A model score is not a calibrated probability. A `NO_EVIDENCE_FOUND` result does not authorize a tool.
+`Guard` is the reusable scanner and has no authority to execute tools. It creates bounded original/derived views, passes them to a spawned CPU worker, and applies `InputPolicy` to complete model evidence. It returns the actual maximum model score, threshold, all scored windows, mapped source spans, and an explicit incomplete status on failure. No lexical prompt-injection classifier runs. The local artifact is verified before inference, and the worker cannot run model-supplied code or use network weights.
 
-`ActionGateway` and `GuardedExecutor` are independent of injection classification. Trusted host code creates principals, tenants, exact resource grants, tool lists, destination allowlists and human approvals. Request or model text can only propose an action; it cannot mint authority. The executor rejects non-ALLOW decisions and rechecks catalog version/owner/tenant before a synthetic callback. External persistent systems need their own transactionally equivalent recheck.
+`ActionGateway` and `GuardedExecutor` are independent of injection classification. Only trusted application code may create a principal, tenant, exact grants, allowed tools/destinations, and human approvals. A prompt or proposed action can request an operation but cannot create permission. The executor rechecks resource version, owner, and tenant before invoking a host callback. External stores require their own transactional equivalent.
 
-`RagGateway` checks host catalog and grants before scanning or passing chunks to generation. Fictional hospital and enterprise integrations demonstrate record-level and tenant boundaries; the `create_chatbot_app` reference host maps a credential to server-owned identity before retrieval. `OutputGuard` checks known sensitive values, links, recipients, fields and resource grants before host release. The public output HTTP route only inspects and explicitly returns `release_authorized:false`, since request-declared provenance cannot authorize release. These layers remain required when the model misses an attack. The default missing-model behavior withholds sensitive actions and reports scan `INCOMPLETE`.
+`RagGateway` checks tenant/catalog/grants before scanning retrieved content; it withholds blocked or incomplete chunks. Fictional hospital and enterprise hosts demonstrate resource boundaries and output release. `OutputGuard` checks known sensitive values, links, structured fields, recipient, and resource grants. Its deterministic checks are output/data controls, **not** prompt-injection classification.
 
-FastAPI supplies bounded HTTP, auth, CORS, rate limits, readiness and metadata-only SQLite history. React consumes the actual `/v2` API and renders untrusted strings as text. The package, server, UI and training code have separate dependency directions: core guards do not import FastAPI or React, and no request text is executed as shell/code.
+FastAPI provides bounded authenticated transport, readiness, safe errors, rate limits, CORS, and metadata-only audit logging. The one-page React dashboard displays actual scan results. Core scanning and guards do not import FastAPI, React, training modules, or a hosted LLM. See [CODEBASE.md](../CODEBASE.md) for detailed call sequences and ownership.

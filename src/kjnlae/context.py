@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class TrustedSecurityContext:
+    """Host-verified identity and task context for policy, never scan JSON."""
+
     principal: str
     tenant: str
     task: str

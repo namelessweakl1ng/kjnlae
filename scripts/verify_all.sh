@@ -32,7 +32,7 @@ npm --prefix frontend run build
 
 if [[ "${KJNLAE_VERIFY_RELEASE:-0}" == "1" ]]; then
   "$PY" -m kjnlae.cli doctor >/tmp/kjnlae-doctor.json
-  "$PY" -m kjnlae.cli benchmark --output /tmp/kjnlae-release-benchmark >/tmp/kjnlae-benchmark.log
+  "$PY" -m kjnlae.maintainer_cli benchmark --output /tmp/kjnlae-release-benchmark >/tmp/kjnlae-benchmark.log
   echo "Release checks: real model, fixture benchmark, tests and frontend passed"
 else
   echo "Core checks passed. Actual-weight checks NOT_RUN without KJNLAE_VERIFY_RELEASE=1"

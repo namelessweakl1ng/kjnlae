@@ -70,7 +70,7 @@ def _probe_worker(config: ProbeConfig, rows: list[dict[str, Any]], queue: Any) -
         torch.set_num_threads(4)
         torch.set_num_interop_threads(1)
         started = time.monotonic()
-        tokenizer = AutoTokenizer.from_pretrained(config.base_dir, local_files_only=True)
+        tokenizer = cast(Any, AutoTokenizer).from_pretrained(config.base_dir, local_files_only=True)
         model_config = AutoConfig.from_pretrained(config.base_dir, local_files_only=True)
         model_config.num_labels = 2
         model_config.id2label = {0: "NON_INJECTION", 1: "INJECTION"}

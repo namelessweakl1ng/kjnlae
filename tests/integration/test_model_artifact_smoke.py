@@ -52,9 +52,7 @@ def test_real_weight_http_scan_and_readiness(tmp_path) -> None:
     manifest_hash = os.getenv("KJNLAE_TEST_MODEL_HASH")
     if not model_path or not manifest_hash:
         pytest.skip("Set local trained model path and manifest hash")
-    settings = Settings(
-        database=str(tmp_path / "audit.db"), model_dir=model_path, model_hash=manifest_hash
-    )
+    settings = Settings(model_dir=model_path, model_hash=manifest_hash)
     with TestClient(create_app(settings)) as client:
         assert client.get("/health/ready").status_code == 200
         result = client.post(
