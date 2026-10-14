@@ -12,6 +12,7 @@ from kjnlae.classifiers.artifacts import (
 
 
 def test_default_model_location_is_not_a_working_directory(monkeypatch, tmp_path):
+    monkeypatch.setattr("kjnlae.classifiers.artifacts.sys.platform", "linux")
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
     assert default_model_dir() == tmp_path / "kjnlae" / "models" / "reviewed-v0.2"
 

@@ -1,8 +1,12 @@
 import os
 import subprocess
+import sys
 from pathlib import Path
 
+import pytest
 
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Release script requires POSIX Bash")
 def test_release_gate_rejects_missing_artifact():
     root = Path(__file__).resolve().parents[2]
     environment = dict(os.environ)
