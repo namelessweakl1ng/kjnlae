@@ -133,7 +133,7 @@ def verify_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
     if quality_status != "EXPERIMENTAL":
         raise ValueError("Invalid or missing model quality status")
     threshold = raw.get("threshold")
-    if type(threshold) not in (int, float) or not 0 < threshold <= 1:
+    if isinstance(threshold, bool) or not isinstance(threshold, (int, float)) or not 0 < threshold <= 1:
         raise ValueError("Invalid calibration threshold")
     files = raw.get("files")
     if not isinstance(files, dict) or not {
