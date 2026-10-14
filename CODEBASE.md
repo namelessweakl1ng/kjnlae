@@ -263,7 +263,7 @@ The source layout is intentionally smaller than older revisions. Focus on these 
 | `docs/` | Security policies, architecture, measured results, model card and release provenance |
 | `Dockerfile` and `compose.yaml` | Reproducible source/dashboard reference deployment |
 
-There is **no** runtime `storage/sqlite.py` or v1 HTTP router. The previous `classifiers/artifacts.py` was a duplicate downloader and was removed in this integration; the supported implementation lives in `classifiers/artifacts.py`. The historical v1 archive has been removed; reports about the unchanged experimental v0.2 model remain because they are real evidence.
+There is **no** runtime `storage/sqlite.py` or v1 HTTP router. The previous separate `classifiers/download.py` was a duplicate downloader and has been removed; the supported public installer and artifact verifier both live in `classifiers/artifacts.py`. Obsolete implementation documents have been removed; reports about the unchanged experimental v0.2 model remain because they are real evidence.
 ## 6. One complete input scan, from request to result
 
 For a safe concrete example, assume a host calls:
@@ -340,7 +340,7 @@ POST /v2/scan
           -> return LocalInference
       -> InputPolicy.decide
       -> construct InspectionResultV2 + offsets
-  -> metadata-only history.record
+  -> FastAPI JSON response (no scan-history persistence)
   -> FastAPI JSON response
   -> App.tsx shows outcome + Evidence.tsx highlights spans
 ```
@@ -371,9 +371,9 @@ This tells the model the declared source category. It does **not** make an attac
 
 The tokenizer maps characters into token IDs and masks. DistilBERT produces two logits; PyTorch softmax produces a value for class `1`. That score measures the model's learned tendency to output "INJECTION" for the provided window, **not** the probability the content can compromise a particular deployed LLM. The worker aggregates windows with `max(scores)`. That means even one high-scoring window can make a long document suspicious; this choice improves sensitivity but can also amplify false positives.
 
-### 7.4 Why not reuse v0.1 regex?
+### 7.4 Why there is no regex attack detector
 
-The v0.1 archived project included a hand-authored signature/rule detector; v0.2 intentionally removed that behavior. Unicode, HTML and Base64 handling survive as **preprocessing only**. Authorization checks still use deterministic comparisons because exact permissions must not depend on a probabilistic text classifier. If the trained model is unavailable, the answer is `INCOMPLETE`, not "switch to regex and pretend safe."
+Earlier code had a hand-authored signature/rule detector; the current model-only runtime does not use it. Unicode, HTML and Base64 handling survive as **preprocessing only**. Authorization checks still use deterministic comparisons because exact permissions must not depend on a probabilistic text classifier. If the trained model is unavailable, the answer is `INCOMPLETE`, not "switch to regex and pretend safe."
 
 ### 7.5 Where to learn more
 
@@ -1908,7 +1908,7 @@ The previous sections explain existing code. This section turns that knowledge i
 4. For evidence features, preserve source codepoint mapping and the `scannedContent` snapshot.
 5. Update `App.test.tsx` or `Evidence.test.tsx`.
 6. Run frontend test/build commands and, when possible, the Chromium loopback smoke.
-7. Check model status, loading, error and empty-history states—not only successful API responses.
+7. Check model status, loading, errors and incomplete scans—not only successful API responses.
 
 **Why:** visual polish must preserve the semantics of `INCOMPLETE` and the distinction between API connectivity and model availability.
 
@@ -1951,7 +1951,7 @@ The previous sections explain existing code. This section turns that knowledge i
 | `GuardedExecutor.execute` | TOCTOU and callback uncertainty | Executor/security tests |
 | `OutputGuard.release` | Recipient/grant semantics and known-secret logic | Output-release/security tests |
 | `Settings.from_env` | Production requirements and example env file | API config tests, deployment smoke |
-| `SQLiteHistory.record` | Privacy allowlist/tenant scoping | Audit/history security tests |
+| `LimitsMiddleware.__call__` | HTTP body bytes, time and rate bounds | `test_middleware.py` and Unicode `test_api_v2.py` |
 | `App.tsx` | API contracts and status meaning | Frontend tests/build, browser smoke |
 | `training/fit.py` | Dataset/hashes/selection and memory limits | Training tests + independent evaluation |
 | `evaluation/model.py` | Threshold/test contamination risk | Calibration tests and benchmark review |
