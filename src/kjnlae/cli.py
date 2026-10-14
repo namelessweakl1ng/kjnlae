@@ -36,7 +36,7 @@ def _parser() -> argparse.ArgumentParser:
     scan = commands.add_parser("scan", help="Inspect one bounded text")
     scan.add_argument("--text", help="Text to inspect; otherwise read UTF-8 standard input")
     scan.add_argument("--source", choices=SOURCES, default="user")
-    serve = commands.add_parser("serve", help="Serve the API and built dashboard")
+    serve = commands.add_parser("serve", help="Serve the API and dashboard when assets are built")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
     return parser
@@ -71,6 +71,15 @@ def main(argv: list[str] | None = None) -> None:
             return
         if args.command == "serve":
             import uvicorn
+
+            from kjnlae.api.app import dashboard_dist
+
+            if dashboard_dist() is None:
+                print(
+                    "Dashboard assets unavailable; serving API only. "
+                    "Build the frontend in a source checkout or use the Docker image.",
+                    file=sys.stderr,
+                )
 
             uvicorn.run(
                 "kjnlae.api.app:create_app",

@@ -34,3 +34,12 @@ def test_doctor_missing_model_exits_nonzero(monkeypatch, tmp_path, capsys):
         main(["doctor"])
     assert failure.value.code == 1
     assert json.loads(capsys.readouterr().out)["self_test"]["detection_status"] == "INCOMPLETE"
+
+
+def test_serve_warns_when_dashboard_assets_are_missing(monkeypatch, capsys):
+    from kjnlae.cli import main
+
+    monkeypatch.setattr("kjnlae.api.app.dashboard_dist", lambda: None)
+    monkeypatch.setattr("uvicorn.run", lambda *args, **kwargs: None)
+    main(["serve"])
+    assert "API only" in capsys.readouterr().err

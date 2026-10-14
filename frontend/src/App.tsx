@@ -5,6 +5,10 @@ import type { Capabilities, Scan } from "./types";
 
 const sources = ["user", "retrieved_document", "webpage", "email", "attachment", "tool_response", "agent"];
 
+export function withinInputLimit(text: string) {
+  return Array.from(text).length <= 32768;
+}
+
 function formatPercent(value: number | null | undefined) {
   return value == null ? "Unavailable" : `${(value * 100).toFixed(1)}%`;
 }
@@ -93,7 +97,10 @@ export default function App() {
               <label htmlFor="source">Source</label>
               <select id="source" value={source} onChange={event => setSource(event.target.value)}>{sources.map(item => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</select>
               <label htmlFor="content">Untrusted content</label>
-              <textarea id="content" value={content} onChange={event => setContent(event.target.value)} maxLength={32768} rows={13} required placeholder="Paste a message, retrieved passage, email, or tool response…" />
+              <textarea id="content" value={content} onChange={event => {
+                if (withinInputLimit(event.target.value)) setContent(event.target.value);
+                else setError("Input exceeds 32,768 characters.");
+              }} maxLength={65536} rows={13} required placeholder="Paste a message, retrieved passage, email, or tool response…" />
               <div className="form-actions"><span>{Array.from(content).length.toLocaleString()} / 32,768</span><button className="primary" type="submit" disabled={busy || !content.trim()}>{busy ? "Inspecting…" : "Run inspection"}</button></div>
             </form>
           </section>

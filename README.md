@@ -109,7 +109,7 @@ The `ActionGateway` evaluates host-created `HostAuthority`, current `ResourceCat
 
 ## CLI, HTTP, and developer tools
 
-The ordinary CLI has `kjnlae model download`, `kjnlae model verify`, `kjnlae doctor`, `kjnlae scan`, and `kjnlae serve`. `scan` reads bounded UTF-8 standard input when `--text` is omitted, prints structured JSON, and exits 1 for `INCOMPLETE`. The server exposes `/health/live`, `/health/ready`, `/v2/system/capabilities`, `/v2/scan`, `/v2/rag/inspect`, `/v2/guard/action`, and `/v2/guard/output`. `/v1/*`, duplicate input scanning, lab, benchmark, and history HTTP routes have been removed. A local request:
+The ordinary CLI has `kjnlae model download`, `kjnlae model verify`, `kjnlae doctor`, `kjnlae scan`, and `kjnlae serve`. `scan` reads bounded UTF-8 standard input when `--text` is omitted, prints structured JSON, and exits 1 for `INCOMPLETE`. The server exposes `/health/live`, `/health/ready`, `/v2/system/capabilities`, `/v2/scan`, `/v2/rag/inspect`, `/v2/guard/action`, and `/v2/guard/output`. A standalone Python wheel contains no compiled dashboard; `serve` then warns and exposes the API only. Build the frontend in a source checkout as shown above or use Docker for the UI. `/v1/*`, duplicate input scanning, lab, benchmark, and history HTTP routes have been removed. A local request:
 
 ```bash
 curl -sS http://127.0.0.1:8000/v2/scan -H 'Content-Type: application/json' \

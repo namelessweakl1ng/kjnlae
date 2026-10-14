@@ -61,6 +61,22 @@ class RagInspectRequestV2(StrictV2):
     chunks: list[ContentEnvelope] = Field(min_length=1, max_length=16)
 
 
+def dashboard_dist() -> Path | None:
+    """Find built UI assets in a checkout or Docker image, if present."""
+    candidates = (
+        Path(__file__).resolve().parents[3] / "frontend" / "dist",
+        Path("/app/frontend/dist"),
+    )
+    return next(
+        (
+            path
+            for path in candidates
+            if (path / "index.html").is_file() and (path / "assets").is_dir()
+        ),
+        None,
+    )
+
+
 def create_app(
     settings: Settings | None = None,
     *,
@@ -208,10 +224,8 @@ def create_app(
         )
         return guard.inspect_chunks(request.chunks, context)
 
-    dist = Path(__file__).resolve().parents[3] / "frontend" / "dist"
-    if not dist.exists():
-        dist = Path("/app/frontend/dist")
-    if dist.is_dir():
+    dist = dashboard_dist()
+    if dist is not None:
         app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
 
         @app.get("/", include_in_schema=False)

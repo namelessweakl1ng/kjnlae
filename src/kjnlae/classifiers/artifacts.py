@@ -120,7 +120,9 @@ def verify_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
     actual_hash = _hash(manifest_path)
     if expected_hash is not None and actual_hash != expected_hash:
         raise ValueError("Model manifest hash does not match deployment pin")
-    raw: dict[str, Any] = json.loads(manifest_path.read_text())
+    raw: Any = json.loads(manifest_path.read_text())
+    if not isinstance(raw, dict):
+        raise ValueError("Model manifest must be a JSON object")
     if raw.get("base_revision") != BASE_REVISION:
         raise ValueError("Unexpected base model revision")
     if not isinstance(raw.get("trained_steps"), int) or raw["trained_steps"] <= 0:
@@ -150,7 +152,9 @@ def verify_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
             raise ValueError("Model file hash mismatch")
     if any(p.suffix in {".bin", ".pt", ".pkl", ".pickle"} for p in path.iterdir()):
         raise ValueError("Unsafe pickle weights present")
-    config = json.loads((path / "config.json").read_text())
+    config: Any = json.loads((path / "config.json").read_text())
+    if not isinstance(config, dict):
+        raise ValueError("Model config must be a JSON object")
     if config.get("id2label") != {"0": "NON_INJECTION", "1": "INJECTION"}:
         raise ValueError("Unexpected classifier labels")
     return ArtifactManifest(

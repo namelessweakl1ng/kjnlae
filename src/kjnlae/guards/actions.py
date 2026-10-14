@@ -66,8 +66,9 @@ class ActionGateway:
     ) -> AuthorizationResultV2:
         """Check exact host-owned identity, grants, resource state and approval.
 
-        This only returns a decision. The trusted executor consumes an approval
-        while performing the approved callback, never during an HTTP preview.
+        A matching approval token is consumed when this method returns ALLOW.
+        HTTP previews omit the token; the trusted executor performs the action
+        after authorization and does not retry callbacks with uncertain outcomes.
         """
         digest = hashlib.sha256(action.model_dump_json().encode()).hexdigest()
 
