@@ -16,6 +16,8 @@ Profile = Literal["general", "rag", "healthcare", "enterprise", "high_security"]
 
 @dataclass(frozen=True)
 class PolicyOutcome:
+    """Input-policy result, separate from resource or tool authorization."""
+
     decision: Decision
     detection_status: DetectionStatus
     reason_codes: tuple[str, ...]
@@ -23,12 +25,15 @@ class PolicyOutcome:
 
 @dataclass(frozen=True)
 class InputPolicy:
+    """Turn complete model evidence and trusted context into a scan decision."""
+
     profile: Profile = "general"
     version: str = "v2-1"
     policy_hash: str = "built-in"
 
     @classmethod
     def load(cls, path: Path) -> "InputPolicy":
+        """Read only a fixed profile/version schema from a trusted local file."""
         raw_bytes = path.read_bytes()
         data = json.loads(raw_bytes)
         if set(data) != {"profile", "version"} or data["profile"] not in {
@@ -45,6 +50,7 @@ class InputPolicy:
 
     @property
     def id(self) -> str:
+        """Stable policy identity for audit and response metadata."""
         return f"{self.profile}-{self.version}-{self.policy_hash[:12]}"
 
     def decide(
@@ -55,6 +61,7 @@ class InputPolicy:
         trusted_context: TrustedSecurityContext | None,
         threshold: float,
     ) -> PolicyOutcome:
+        """Fail closed on incomplete inspection; threshold uses only model score."""
         if not 0 < threshold <= 1:
             raise ValueError("Calibrated model threshold is required")
         sensitive = self.profile in {"healthcare", "enterprise", "high_security"} or (

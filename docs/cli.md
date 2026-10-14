@@ -1,7 +1,15 @@
-# CLI reference
+# CLI
 
-`kjnlae scan --text TEXT --source SOURCE` performs one model-only scan; without `--text` it reads bounded UTF-8 stdin. It emits structured JSON, exits 0 for a complete result, 1 for `INCOMPLETE`, and 2 for invalid usage. `--mode` is retired and errors. `kjnlae scan-batch --input cases.jsonl` accepts bounded rows with only `text` and optional `source`; it exits 1 if any row is incomplete.
+The ordinary `kjnlae` entry point has five operations:
 
-`kjnlae doctor` and `kjnlae self-test` perform actual model inference and show artifact status/hash. `kjnlae model verify DIRECTORY --hash SHA256` validates a local promoted artifact; `kjnlae model prepare-base DIRECTORY` explicitly downloads the pinned base model. `kjnlae train prepare|probe|fit|evaluate` implements the reproducible pipeline described in [model training](model-training.md). `kjnlae benchmark --output PREFIX` writes JSON and Markdown, and exits 1 if detection was incomplete. `kjnlae demo --scenario baseline|rag|hospital|enterprise` runs synthetic local cases. `kjnlae serve --host 127.0.0.1 --port 8000` runs FastAPI and a built frontend if present.
+| Command | Result |
+|---|---|
+| `kjnlae model download [--directory PATH]` | Explicitly download the reviewed public model at a pinned commit, verify manifest and all files, and install without overwriting. Advanced use may supply `--repo`, `--revision`, and `--hash` together. |
+| `kjnlae model verify [--directory PATH] [--hash SHA256]` | Recheck a local artifact; defaults to the reviewed model and pin. |
+| `kjnlae doctor` | Show capability status and perform an actual local inference self-test. |
+| `kjnlae scan [--text TEXT] [--source SOURCE]` | Inspect bounded text; without `--text`, read at most 32,769 characters from standard input. Exit 1 on `INCOMPLETE`, 2 on invalid usage. |
+| `kjnlae serve [--host HOST] [--port PORT]` | Start FastAPI and the built dashboard, loopback by default. |
 
-Heavy base downloads and training only occur when those explicit commands are invoked. Model inference never downloads weights. Run `kjnlae --help` and each subcommand's `--help` for exact flags. Do not pass real secrets on a shell command line, where process listings or shell history might retain them; use bounded stdin or an authorized local integration.
+A first model download is online and does not need a Hugging Face token. Inference is offline. Missing or corrupt weights never trigger a classifier fallback. Do not place real secrets in `--text`, which shell history/process listings may retain; use standard input or the SDK.
+
+Maintainer-only operations use `python -m kjnlae.maintainer_cli prepare-base|train|benchmark|demo`. They are not part of the everyday command tree. Run `python -m kjnlae.maintainer_cli --help` for arguments and see [training](model-training.md) and [benchmarks](benchmarks.md).

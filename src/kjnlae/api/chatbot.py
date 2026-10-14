@@ -22,15 +22,21 @@ from kjnlae.schemas_v2 import StrictV2
 
 
 class Scanner(Protocol):
+    """Model scanner supplied by the host application."""
+
     def scan(self, text: str, **context: object) -> Any: ...
 
 
 class ChatRequest(StrictV2):
+    """Untrusted message and requested resource identifier."""
+
     message: str = Field(min_length=1, max_length=4096)
     resource: str = Field(min_length=1, max_length=128)
 
 
 class ChatResult(StrictV2):
+    """Expose scan, action and output decisions separately to callers."""
+
     detection_decision: str
     action_status: str
     output_decision: str

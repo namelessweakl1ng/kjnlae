@@ -20,7 +20,7 @@ The core question is whether untrusted content can induce deviation, unauthorize
 
 ## In scope
 
-Direct/indirect injection evidence, selected obfuscation, role spoofing, disclosure/exfiltration requests, action permission violations, approval substitution/replay/expiry, missing required control, privacy-preserving persistence, request bounds, credentials and HTML-safe display. Sandbox secrets and destinations are synthetic `.test` fixtures.
+Direct/indirect injection evidence, selected obfuscation, role spoofing, disclosure/exfiltration requests, action permission violations, approval substitution/replay/expiry, missing required control, privacy-preserving audit logging, request bounds, credentials and HTML-safe display. Sandbox secrets and destinations are synthetic `.test` fixtures.
 
 ## Out of scope
 
@@ -28,4 +28,4 @@ Compromised host/credentials, arbitrary tool adapters, arbitrary filesystem path
 
 ## Failure boundaries
 
-Oversized text is rejected. Encoded/window budget exhaustion is incomplete and requires review. An unavailable local trained model makes readiness fail and denies sensitive actions. Non-sensitive read authorization can return a degraded `WARN`, but the provided executor will not execute it. Storage failure fails the HTTP scan instead of silently claiming a persisted decision. Production fails at configuration time without credentials or model pinning and does not register lab routes.
+Oversized text is rejected. Encoded/window budget exhaustion is incomplete and requires review. An unavailable local trained model makes readiness fail and denies sensitive actions. Non-sensitive read authorization can return a degraded `WARN`, but the provided executor will not execute it. The runtime does not persist prompt history. Production fails at configuration time without credentials or a model pin.

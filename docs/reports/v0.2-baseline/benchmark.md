@@ -1,5 +1,10 @@
 # kjnlae measured benchmark
 
+**Historical, inactive v0.1 baseline.** The `deterministic` and `combined`
+rows below record an earlier experiment. Current SDK, CLI, HTTP, dashboard and
+integrations use only the verified fine-tuned model for injection detection;
+this report is retained solely for reproducibility and comparison.
+
 Dataset: kjnlae-original-regression-v1
 SHA256: ecc953fd7e3ea64ef45301653c00600613d026640cd8c9b74cccae1029078932
 

@@ -4,7 +4,7 @@ Use `RagGateway` with a host-created `TrustedSecurityContext`, `ResourceCatalog`
 
 ```bash
 python examples/rag.py benefits
-kjnlae demo --scenario rag
+python -m kjnlae.maintainer_cli demo --scenario rag
 ```
 
 The example uses synthetic handbook and HR chunks. The HR chunk is not passed to the scanner or answer for a principal without its grant. A document's prose cannot assert that it is a system message or grant access. Real RAG systems must enforce ACLs in the authoritative store as well, version citations, avoid cross-tenant cache entries and recheck access at output release. `POST /v2/rag/inspect` supplies only bounded inspection; it does **not** perform retrieval authorization for arbitrary API-supplied chunks.

@@ -12,6 +12,8 @@ log = logging.getLogger("kjnlae.audit")
 
 
 class LimitsMiddleware:
+    """Bound request bodies and rate before FastAPI parses user content."""
+
     def __init__(self, app: ASGIApp, rate: int = 60, body_timeout: float = 10) -> None:
         self.app, self.rate = app, rate
         self.body_timeout = body_timeout
@@ -43,7 +45,7 @@ class LimitsMiddleware:
                     scope, receive, send
                 )
                 return
-        if scope.get("path", "").startswith(("/v1/", "/v2/")):
+        if scope.get("path", "").startswith("/v2/") or scope.get("path") == "/chat":
             peer = str((scope.get("client") or ("unknown", 0))[0])
             now = time.monotonic()
             tokens, previous = self.peers.pop(peer, (float(self.rate), now))
