@@ -22,10 +22,9 @@ from kjnlae.api.middleware import LimitsMiddleware
 from kjnlae.context import TrustedSecurityContext
 from kjnlae.evaluation.benchmark import benchmark
 from kjnlae.evaluation.sandbox import run_scenarios
-from kjnlae.guards.actions import ActionGateway, Authority
+from kjnlae.guards.actions import ActionGateway
 from kjnlae.guards.output import OutputGuard
 from kjnlae.guards.resources import HostAuthority, ProposedAction, ResourceCatalog
-from kjnlae.schemas import ActionRequest, ActionResult, OutputRequest, OutputResult
 from kjnlae.schemas_v2 import ContentEnvelope, InspectionRequestV2, InspectionResultV2, StrictV2
 from kjnlae.storage.sqlite import SQLiteHistory
 
@@ -60,7 +59,6 @@ def create_app(
     settings: Settings | None = None,
     *,
     action_gateway: ActionGateway | None = None,
-    trusted_authority: Authority | None = None,
     trusted_authority_v2: HostAuthority | None = None,
     resource_catalog: ResourceCatalog | None = None,
     guard_override: Guard | None = None,
@@ -68,7 +66,6 @@ def create_app(
     cfg = settings or Settings.from_env()
     audit = configure_audit()
     guard = guard_override or Guard(model_dir=cfg.model_dir, model_hash=cfg.model_hash)
-    authority = trusted_authority or cfg.authority()
     configured_authority, configured_catalog = cfg.authority_v2()
     host_authority = trusted_authority_v2 or configured_authority
     catalog = resource_catalog or configured_catalog
@@ -225,21 +222,6 @@ def create_app(
         @app.get("/v2/evaluation", dependencies=protected)
         def evaluation() -> dict[str, Any]:
             return benchmark(guard)
-
-    @app.post("/v1/scan", dependencies=protected)
-    @app.post("/v1/guard/input", dependencies=protected)
-    def retired_scan() -> JSONResponse:
-        return JSONResponse({"error": "retired_endpoint", "migration": "/v2/scan"}, status_code=410)
-
-    @app.post("/v1/guard/action", response_model=ActionResult, dependencies=protected)
-    def action(request: ActionRequest) -> ActionResult:
-        if request.approval_token is not None:
-            raise HTTPException(422, "Approval tokens belong to trusted host execution")
-        return actions.authorize(request.action, authority, controls_ready=controls_ready())
-
-    @app.post("/v1/guard/output", response_model=OutputResult, dependencies=protected)
-    def output(request: OutputRequest) -> OutputResult:
-        return outputs.inspect(request.text, request.structured)
 
     dist = Path(__file__).resolve().parents[3] / "frontend" / "dist"
     if not dist.exists():

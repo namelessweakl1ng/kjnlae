@@ -23,7 +23,7 @@ def test_v2_missing_model_is_explicit_and_v1_scan_gone(tmp_path):
         assert response.json()["detection_status"] == "INCOMPLETE"
         assert response.json()["model_status"] == "MISSING"
         assert response.json()["policy_decision"] != "ALLOW"
-        assert client.post("/v1/scan", json={"text": "Hello"}).status_code == 410
+        assert client.post("/v1/scan", json={"text": "Hello"}).status_code == 404
         assert client.get("/health/ready").status_code == 503
         assert (
             client.get("/v2/system/capabilities").json()["detector"]
@@ -79,16 +79,7 @@ def test_v2_rejects_mode_and_forged_authority(tmp_path):
         result = client.post("/v2/guard/output", json={"text": "Ordinary output"})
         assert result.status_code == 200
         assert result.json()["release_authorized"] is False
-        assert (
-            client.post(
-                "/v1/guard/action",
-                json={
-                    "action": {"tool": "send_email", "resource": "r"},
-                    "approval_token": "forged",
-                },
-            ).status_code
-            == 422
-        )
+
 
 
 def test_v2_production_auth(tmp_path):

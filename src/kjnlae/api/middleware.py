@@ -43,7 +43,7 @@ class LimitsMiddleware:
                     scope, receive, send
                 )
                 return
-        if scope.get("path", "").startswith(("/v1/", "/v2/")):
+        if scope.get("path", "").startswith("/v2/"):
             peer = str((scope.get("client") or ("unknown", 0))[0])
             now = time.monotonic()
             tokens, previous = self.peers.pop(peer, (float(self.rate), now))

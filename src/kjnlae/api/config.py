@@ -7,7 +7,6 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from kjnlae.guards.actions import Authority, Grant
 from kjnlae.guards.resources import (
     HostAuthority,
     Operation,
@@ -15,14 +14,7 @@ from kjnlae.guards.resources import (
     ResourceGrant,
     ResourceRecord,
 )
-from kjnlae.schemas import Action, StrictModel
-
-
-class AuthorityFile(StrictModel):
-    principal: str
-    owned_resources: frozenset[str]
-    destinations: frozenset[str] = frozenset()
-    actions: list[Action]
+from kjnlae.schemas import StrictModel
 
 
 class V2GrantFile(StrictModel):
@@ -52,7 +44,6 @@ class Settings:
     rate_limit: int = 60
     cors_origins: tuple[str, ...] = ()
     allowed_hosts: tuple[str, ...] = ("localhost", "127.0.0.1", "testserver")
-    authority_path: str = ""
     authority_v2_path: str = ""
     model_dir: str = ""
     model_hash: str = ""
@@ -81,24 +72,11 @@ class Settings:
             allowed_hosts=tuple(
                 os.getenv("KJNLAE_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",")
             ),
-            authority_path=os.getenv("KJNLAE_AUTHORITY_FILE", ""),
             authority_v2_path=os.getenv("KJNLAE_AUTHORITY_V2_FILE", ""),
             model_dir=os.getenv("KJNLAE_MODEL_DIR", ""),
             model_hash=os.getenv("KJNLAE_MODEL_HASH", ""),
             output_hosts=frozenset(filter(None, os.getenv("KJNLAE_OUTPUT_HOSTS", "").split(","))),
             output_secrets=tuple(json.loads(os.getenv("KJNLAE_OUTPUT_SECRETS_JSON", "[]"))),
-        )
-
-    def authority(self) -> Authority:
-        if not self.authority_path:
-            # No permissions by default, including development mode.
-            return Authority("api-service" if self.api_key else "local-analysis", frozenset(), ())
-        cfg = AuthorityFile.model_validate_json(Path(self.authority_path).read_text())
-        return Authority(
-            cfg.principal,
-            cfg.owned_resources,
-            tuple(Grant(a) for a in cfg.actions),
-            cfg.destinations,
         )
 
     def authority_v2(self) -> tuple[HostAuthority, ResourceCatalog]:

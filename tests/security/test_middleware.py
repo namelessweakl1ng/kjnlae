@@ -20,7 +20,7 @@ def test_slow_request_body_has_a_deadline():
             sent.append(message)
 
         middleware = LimitsMiddleware(app, body_timeout=0.01)
-        await middleware({"type": "http", "method": "POST", "path": "/v1/scan"}, receive, send)
+        await middleware({"type": "http", "method": "POST", "path": "/v2/scan"}, receive, send)
         assert not called and sent[0]["status"] == 408
 
     asyncio.run(run())
