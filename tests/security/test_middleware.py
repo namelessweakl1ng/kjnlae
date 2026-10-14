@@ -48,3 +48,28 @@ def test_chat_route_is_rate_limited():
         assert statuses == [200, 429]
 
     asyncio.run(run())
+
+
+def test_oversized_request_still_rejected():
+    """Allow valid encoded Unicode scans, but keep an explicit byte ceiling."""
+    async def run():
+        statuses = []
+        called = False
+
+        async def app(scope, receive, send):
+            nonlocal called
+            called = True
+
+        async def receive():
+            return {"type": "http.request", "body": b"x" * (512 * 1024 + 1), "more_body": False}
+
+        async def send(message):
+            if message["type"] == "http.response.start":
+                statuses.append(message["status"])
+
+        middleware = LimitsMiddleware(app)
+        scope = {"type": "http", "method": "POST", "path": "/v2/scan"}
+        await middleware(scope, receive, send)
+        assert not called and statuses == [413]
+
+    asyncio.run(run())
