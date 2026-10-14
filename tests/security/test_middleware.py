@@ -52,6 +52,7 @@ def test_chat_route_is_rate_limited():
 
 def test_oversized_request_still_rejected():
     """Allow valid encoded Unicode scans, but keep an explicit byte ceiling."""
+
     async def run():
         statuses = []
         called = False
