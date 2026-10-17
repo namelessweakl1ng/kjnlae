@@ -34,7 +34,7 @@ with Guard() as guard:
 
 ## Platform quickstarts
 
-Supported Python versions on **Linux x86-64 are 3.11, 3.12, 3.13 and 3.14**. Each was installed in a clean environment and ran the real local model in the current cloud Linux environment. Other platforms have compatible wheels and configured no-weight CI jobs, but this feature branch's hosted jobs and real-model inference there still need verification; see the [compatibility table](docs/onnx-runtime.md#compatibility).
+Supported Python versions on **Linux x86-64 are 3.11, 3.12, 3.13 and 3.14**. Each was installed in a clean environment and ran the real local model in the current cloud Linux environment. Windows and macOS passed hosted no-weight CI jobs, but real-model inference there still needs verification; see the [compatibility table](docs/onnx-runtime.md#compatibility).
 
 **Fedora/Linux:** install a supported Python version, create a virtual environment and use its interpreter. Fedora's default Python 3.14 is supported on Linux x86-64.
 

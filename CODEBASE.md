@@ -831,7 +831,7 @@ The download command installs a verified ONNX derivative into an OS-specific **p
 
 ### 15.4 Windows and macOS verification boundaries
 
-The feature-branch CI is configured to install/import/test the code on Windows/macOS and exercise the no-model path. An actual-weight inference run on these platforms has **not** yet been demonstrated; do not claim more than the evidence supports. Linux x86-64 real-weight inference was run on Python 3.11–3.14; earlier browser and Docker smokes used the previous runtime.
+The feature-branch [hosted CI run](https://github.com/namelessweakl1ng/kjnlae/actions/runs/39069710247) passed Windows/macOS no-weight tests. An actual-weight inference run on these platforms has **not** yet been demonstrated; do not claim more than the evidence supports. Linux x86-64 real-weight inference was run on Python 3.11–3.14; earlier browser smokes used the previous runtime, while local Docker degraded/real-model HTTP smokes were rerun for the ONNX image.
 
 ### 15.5 Offline after installation
 
@@ -1639,7 +1639,7 @@ The page keeps the API credential in component state, not localStorage. This is 
 
 ### 29.2 GitHub Actions
 
-The CI matrix runs Python 3.11–3.14 on Linux, Windows and macOS no-weight portability jobs, a React test/build/audit job and a Docker container smoke. Missing-weight benchmark checks must explicitly return `INCOMPLETE`. Prior hosted runs verified the old PyTorch runtime; the ONNX branch needs its own CI run.
+The [eight-job ONNX branch CI run](https://github.com/namelessweakl1ng/kjnlae/actions/runs/39069710247) passed Python 3.11–3.14 Linux jobs, Windows/macOS no-weight portability jobs, React test/build/audit and a Docker degraded-mode smoke. Missing-weight benchmark checks explicitly return `INCOMPLETE`; real-weight Linux verification is recorded separately.
 
 ### 29.3 Local actual-weight gate
 

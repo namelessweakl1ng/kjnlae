@@ -40,7 +40,7 @@ The comparison used the same source prefix, tokenizer data, token limit (128), o
 
 ## Compatibility
 
-"Actual" means installation and real-weight inference executed in this environment. "Wheel" means required platform wheels were visible on PyPI; it is not a runtime test. Hosted CI for this feature branch has not yet been observed.
+"Actual" means installation and real-weight inference executed in this environment. "Wheel" means required platform wheels were visible on PyPI; it is not a runtime test. The [hosted eight-job CI run](https://github.com/namelessweakl1ng/kjnlae/actions/runs/39069710247) passed on this feature branch, including Windows/macOS no-weight tests; those jobs did not download the model.
 
 | Platform | Python | Evidence / limit |
 |---|---|---|

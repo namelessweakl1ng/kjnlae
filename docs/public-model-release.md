@@ -45,7 +45,7 @@ An advanced operator can specify `--directory` on both `model download` and `mod
 
 The scanner does **not** download or call Hugging Face during inference. A missing, incompatible, corrupt, timed-out, or incompletely processed artifact yields `INCOMPLETE`, not permission to continue. A model score is **not** a calibrated probability that an attack succeeds, and input `ALLOW` is never an action or output-release authorization.
 
-The original v0.2 checkpoint successfully passed public Hugging Face download/integrity verification on Fedora. The 0.3.2 branch recorded CPU ONNX actual-weight inference on Linux x86-64 Python 3.11–3.14 and per-window parity against the original PyTorch model in [verification](verification.md). Windows/macOS real-weight inference has **not** yet been exercised. The 0.3.2 feature branch's hosted CI status must be checked separately from historical runs.
+The original v0.2 checkpoint successfully passed public Hugging Face download/integrity verification on Fedora. The 0.3.2 branch recorded CPU ONNX actual-weight inference on Linux x86-64 Python 3.11–3.14 and per-window parity against the original PyTorch model in [verification](verification.md). The feature branch's [hosted CI run](https://github.com/namelessweakl1ng/kjnlae/actions/runs/39069710247) passed, including Windows/macOS no-weight tests. Windows/macOS real-weight inference has **not** yet been exercised.
 
 ## Maintainers: new model versions
 
