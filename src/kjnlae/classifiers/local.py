@@ -9,9 +9,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from multiprocessing.process import BaseProcess
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 
-from kjnlae.classifiers.artifacts import verify_artifact
+from kjnlae.classifiers.artifacts import verify_onnx_artifact
 from kjnlae.detection.preprocessing import InspectionView
 from kjnlae.schemas import Source
 from kjnlae.schemas_v2 import ModelStatus
@@ -118,8 +118,22 @@ def build_windows(
     return tuple(result)
 
 
+def _scores_from_logits(logits: Any) -> list[float]:
+    """Reject invalid model output before it reaches the policy decision."""
+    import numpy as np
+
+    if logits.ndim != 2 or logits.shape[1] != 2 or not np.isfinite(logits).all():
+        raise ValueError("Invalid model logits")
+    shifted = logits - np.max(logits, axis=1, keepdims=True)
+    exp = np.exp(shifted)
+    probabilities = exp[:, 1] / np.sum(exp, axis=1)
+    if not np.isfinite(probabilities).all():
+        raise ValueError("Invalid model logits")
+    return [float(value) for value in probabilities]
+
+
 def _local_worker(conn: _WorkerPipe, cfg: LocalModelConfig) -> None:
-    """Load only verified local safetensors, then score every bounded view/window."""
+    """Load only the verified CPU graph, then score every bounded view/window."""
     try:
         import os
 
@@ -130,23 +144,24 @@ def _local_worker(conn: _WorkerPipe, cfg: LocalModelConfig) -> None:
             import resource
 
             resource.setrlimit(resource.RLIMIT_AS, (cfg.memory_mb * 1024**2,) * 2)
-        import torch
-        from transformers.models.auto.modeling_auto import AutoModelForSequenceClassification
-        from transformers.models.auto.tokenization_auto import AutoTokenizer
+        import numpy as np
+        import onnxruntime as ort
+        from tokenizers import Tokenizer
 
-        artifact = verify_artifact(cfg.model_dir, cfg.manifest_hash)
-        torch.set_num_threads(4)
-        torch.set_num_interop_threads(1)
-        tokenizer = cast(Any, AutoTokenizer).from_pretrained(
-            cfg.model_dir, local_files_only=True, trust_remote_code=False, use_fast=True
-        )
-        model = (
-            cast(Any, AutoModelForSequenceClassification)
-            .from_pretrained(
-                cfg.model_dir, local_files_only=True, trust_remote_code=False, use_safetensors=True
-            )
-            .to("cpu")
-            .eval()
+        artifact = verify_onnx_artifact(cfg.model_dir, cfg.manifest_hash)
+        tokenizer = Tokenizer.from_file(str(cfg.model_dir / "tokenizer.json"))
+        # The exported tokenizer.json embeds a 128-token truncation setting.
+        # Disable it so our own bounded overlapping windows cover every token.
+        tokenizer.no_truncation()
+        tokenizer.no_padding()
+        cls_id, sep_id = tokenizer.token_to_id("[CLS]"), tokenizer.token_to_id("[SEP]")
+        if cls_id is None or sep_id is None:
+            raise ValueError("Verified tokenizer lacks special tokens")
+        options = ort.SessionOptions()
+        options.intra_op_num_threads = 4
+        options.inter_op_num_threads = 1
+        model = ort.InferenceSession(
+            str(cfg.model_dir / "model.onnx"), options, providers=["CPUExecutionProvider"]
         )
         conn.send({"loaded": True})
         while True:
@@ -154,25 +169,22 @@ def _local_worker(conn: _WorkerPipe, cfg: LocalModelConfig) -> None:
             if message is None:
                 break
             views, source = message
-            prefix_ids = tokenizer.encode(f"Source: {source}\nContent:\n", add_special_tokens=False)
-            width = (
-                cfg.token_limit - tokenizer.num_special_tokens_to_add(pair=False) - len(prefix_ids)
-            )
+            prefix_ids = tokenizer.encode(
+                f"Source: {source}\nContent:\n", add_special_tokens=False
+            ).ids
+            width = cfg.token_limit - 2 - len(prefix_ids)
             if width < 8:
                 conn.send({"status": "ERROR", "reason": "TOKEN_LIMIT_TOO_LOW"})
                 continue
-            encodings = [
-                tokenizer(v.text, add_special_tokens=False, return_offsets_mapping=True)
-                for v in views
-            ]
-            offsets = [e["offset_mapping"] for e in encodings]
+            encodings = [tokenizer.encode(v.text, add_special_tokens=False) for v in views]
+            offsets = [e.offsets for e in encodings]
             specs = build_windows(views, offsets, width, cfg.overlap, cfg.max_windows)
             if specs is None:
                 conn.send({"status": "ERROR", "reason": "COVERAGE_EXCEEDED"})
                 continue
             batches: list[list[int]] = []
             for encoding in encodings:
-                ids = encoding["input_ids"]
+                ids = encoding.ids
                 if not ids:
                     batches.append(prefix_ids)
                     continue
@@ -180,14 +192,17 @@ def _local_worker(conn: _WorkerPipe, cfg: LocalModelConfig) -> None:
                     batches.append(prefix_ids + ids[start:end])
             scores: list[float] = []
             for pos in range(0, len(batches), cfg.batch_size):
-                ready = [
-                    tokenizer.prepare_for_model(ids, add_special_tokens=True)
-                    for ids in batches[pos : pos + cfg.batch_size]
-                ]
-                batch = tokenizer.pad(ready, padding=True, return_tensors="pt")
-                with torch.inference_mode():
-                    probabilities = torch.softmax(model(**batch).logits, dim=-1)[:, 1]
-                scores.extend(float(value) for value in probabilities.tolist())
+                ready = [[cls_id, *ids, sep_id] for ids in batches[pos : pos + cfg.batch_size]]
+                size = max(map(len, ready))
+                ids_array = np.zeros((len(ready), size), dtype=np.int64)
+                mask_array = np.zeros_like(ids_array)
+                for row, ids in enumerate(ready):
+                    ids_array[row, : len(ids)] = ids
+                    mask_array[row, : len(ids)] = 1
+                logits = model.run(
+                    ["logits"], {"input_ids": ids_array, "attention_mask": mask_array}
+                )[0]
+                scores.extend(_scores_from_logits(logits))
             if len(scores) != len(specs):
                 conn.send({"status": "ERROR", "reason": "WINDOW_COUNT_MISMATCH"})
                 continue

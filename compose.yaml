@@ -11,7 +11,7 @@ services:
       KJNLAE_MODEL_DIR: /app/model
       KJNLAE_MODEL_HASH: ${KJNLAE_MODEL_HASH:-}
     volumes:
-      - ${KJNLAE_MODEL_DIR_HOST:-./var/models/reviewed-v0.2}:/app/model:ro
+      - ${KJNLAE_MODEL_DIR_HOST:-./var/models/reviewed-v0.2-onnx}:/app/model:ro
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777

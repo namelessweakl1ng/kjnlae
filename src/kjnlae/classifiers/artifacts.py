@@ -17,6 +17,10 @@ BASE_REVISION = "12040accade4e8a0f71eabdb258fecc2e7e948be"
 PUBLIC_MODEL_REPO = "namelessweakling/kjnlae-distilbert-v0.2"
 PUBLIC_MODEL_REVISION = "d6f5f455a4bc9b2c4587fc7f3011385a871e3653"
 PUBLIC_MODEL_MANIFEST_SHA256 = "54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b"
+ONNX_TEMPLATE_SHA256 = "78e39b995911d8b3fbf66e0e76ee97e6271e17384b7e80ee994946c75bf06fce"
+ONNX_MODEL_SHA256 = "d95dd1850d338f3687f13902869b18e8b6e37f6b23a2dc5845f76133d9dd03a1"
+ONNX_MANIFEST_SHA256 = "6b69bd6a790119d4c53fe2df02447114eebcdadddec18d788bf1cf6825ecfa1c"
+REVIEWED_THRESHOLD = 0.025134501978754997
 PUBLIC_MODEL_FILES = [
     "manifest.json",
     "config.json",
@@ -36,7 +40,7 @@ def default_model_dir() -> Path:
         root = Path.home() / "Library" / "Application Support"
     else:
         root = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share")
-    return root / "kjnlae" / "models" / "reviewed-v0.2"
+    return root / "kjnlae" / "models" / "reviewed-v0.2-onnx"
 
 
 def download_public_model(
@@ -53,7 +57,7 @@ def download_public_model(
     """
     from huggingface_hub import snapshot_download
 
-    target = destination or default_model_dir()
+    target = destination or default_model_dir().with_name("reviewed-v0.2")
     if target.exists() or target.is_symlink():
         raise FileExistsError(f"Model destination already exists: {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -170,6 +174,170 @@ def verify_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
         float(threshold),
         quality_status,
     )
+
+
+def _assemble_onnx(source: Path, destination: Path) -> None:
+    """Fill a weight-free, pinned ONNX graph from the verified safetensors file."""
+    import onnx
+    from safetensors import safe_open
+
+    template = Path(__file__).with_name("model-template.onnx")
+    if _hash(template) != ONNX_TEMPLATE_SHA256:
+        raise ValueError("ONNX graph template hash mismatch")
+    graph = onnx.load(template, load_external_data=False)
+    with safe_open(source / "model.safetensors", framework="np") as tensors:
+        names = set(tensors.keys())
+        expected = {entry.name.removeprefix("m.") for entry in graph.graph.initializer}
+        if names != expected or any(
+            not entry.name.startswith("m.") for entry in graph.graph.initializer
+        ):
+            raise ValueError("ONNX template and model tensors differ")
+        for entry in graph.graph.initializer:
+            tensor = tensors.get_tensor(entry.name.removeprefix("m."))
+            if list(tensor.shape) != list(entry.dims) or str(tensor.dtype) != "float32":
+                raise ValueError("ONNX tensor shape or type mismatch")
+            entry.raw_data = tensor.tobytes()
+    onnx.save(graph, destination)
+    if _hash(destination) != ONNX_MODEL_SHA256:
+        raise ValueError("ONNX conversion does not match reviewed export")
+
+
+def verify_onnx_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
+    """Require a separately identified ONNX derivative of the reviewed checkpoint."""
+    if path.is_symlink() or not path.is_dir():
+        raise ValueError("ONNX model directory missing or linked")
+    manifest_path = path / "manifest.json"
+    if manifest_path.is_symlink() or not manifest_path.is_file():
+        raise ValueError("ONNX manifest missing or linked")
+    actual_hash = _hash(manifest_path)
+    if expected_hash is not None and actual_hash != expected_hash:
+        raise ValueError("ONNX manifest hash does not match deployment pin")
+    raw: Any = json.loads(manifest_path.read_text())
+    if not isinstance(raw, dict) or raw.get("artifact_version") != "kjnlae-v0.3.2-onnx-1":
+        raise ValueError("Unexpected ONNX manifest")
+    if (
+        raw.get("source_manifest_sha256") != PUBLIC_MODEL_MANIFEST_SHA256
+        or raw.get("graph_template_sha256") != ONNX_TEMPLATE_SHA256
+        or raw.get("base_revision") != BASE_REVISION
+        or raw.get("trained_steps") != 462
+        or raw.get("quality_status") != "EXPERIMENTAL"
+    ):
+        raise ValueError("ONNX provenance mismatch")
+    threshold = raw.get("threshold")
+    if (
+        isinstance(threshold, bool)
+        or not isinstance(threshold, (int, float))
+        or not 0 < threshold <= 1
+    ):
+        raise ValueError("Invalid ONNX threshold")
+    if float(threshold) != REVIEWED_THRESHOLD:
+        raise ValueError("ONNX threshold differs from reviewed model")
+    files = raw.get("files")
+    required = {"model.onnx", "tokenizer.json", "config.json"}
+    if not isinstance(files, dict) or not required.issubset(files):
+        raise ValueError("ONNX files missing from manifest")
+    for name, expected in files.items():
+        if not isinstance(name, str) or not isinstance(expected, str) or name != Path(name).name:
+            raise ValueError("Unsafe ONNX manifest entry")
+        file_path = path / name
+        if file_path.is_symlink() or not file_path.is_file() or _hash(file_path) != expected:
+            raise ValueError("ONNX file hash mismatch")
+    if files["model.onnx"] != ONNX_MODEL_SHA256:
+        raise ValueError("Unreviewed ONNX graph")
+    if any(p.suffix in {".bin", ".pt", ".pkl", ".pickle", ".safetensors"} for p in path.iterdir()):
+        raise ValueError("Unexpected weights in ONNX artifact")
+    config: Any = json.loads((path / "config.json").read_text())
+    if not isinstance(config, dict) or config.get("id2label") != {
+        "0": "NON_INJECTION",
+        "1": "INJECTION",
+    }:
+        raise ValueError("Unexpected classifier labels")
+    return ArtifactManifest(
+        path,
+        actual_hash,
+        raw["artifact_version"],
+        BASE_REVISION,
+        462,
+        float(threshold),
+        "EXPERIMENTAL",
+    )
+
+
+def convert_verified_model(source: Path, destination: Path) -> ArtifactManifest:
+    """Atomically derive the reviewed CPU graph; leave the source untouched."""
+    original = verify_artifact(source, PUBLIC_MODEL_MANIFEST_SHA256)
+    if destination.exists() or destination.is_symlink():
+        raise FileExistsError(f"Model destination already exists: {destination}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if shutil.disk_usage(destination.parent).free < 300 * 1024**2:
+        raise OSError("At least 300 MiB free disk space is required for ONNX conversion")
+    temporary = Path(tempfile.mkdtemp(prefix=".kjnlae-onnx-", dir=destination.parent))
+    try:
+        for name in (
+            "config.json",
+            "special_tokens_map.json",
+            "tokenizer.json",
+            "tokenizer_config.json",
+            "vocab.txt",
+        ):
+            shutil.copy2(source / name, temporary / name)
+        _assemble_onnx(source, temporary / "model.onnx")
+        manifest = {
+            "artifact_version": "kjnlae-v0.3.2-onnx-1",
+            "source_manifest_sha256": original.sha256,
+            "graph_template_sha256": ONNX_TEMPLATE_SHA256,
+            "base_revision": original.base_revision,
+            "trained_steps": original.trained_steps,
+            "quality_status": original.quality_status,
+            "threshold": original.threshold,
+            "files": {p.name: _hash(p) for p in sorted(temporary.iterdir()) if p.is_file()},
+        }
+        (temporary / "manifest.json").write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+        )
+        result = verify_onnx_artifact(temporary, None)
+        if destination.exists() or destination.is_symlink():
+            raise FileExistsError(f"Model destination already exists: {destination}")
+        temporary.rename(destination)
+        return ArtifactManifest(
+            destination,
+            result.sha256,
+            result.artifact_version,
+            result.base_revision,
+            result.trained_steps,
+            result.threshold,
+            result.quality_status,
+        )
+    finally:
+        if temporary.exists():
+            shutil.rmtree(temporary)
+
+
+def download_onnx_model(destination: Path | None = None) -> ArtifactManifest:
+    """Explicitly fetch pinned source weights, verify, convert, then discard staging."""
+    from huggingface_hub import snapshot_download
+
+    target = destination or default_model_dir()
+    if target.exists() or target.is_symlink():
+        raise FileExistsError(f"Model destination already exists: {target}")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if shutil.disk_usage(target.parent).free < 600 * 1024**2:
+        raise OSError(
+            "At least 600 MiB free disk space is required to download and convert the model"
+        )
+    temporary = Path(tempfile.mkdtemp(prefix=".kjnlae-download-", dir=target.parent))
+    try:
+        snapshot_download(
+            repo_id=PUBLIC_MODEL_REPO,
+            revision=PUBLIC_MODEL_REVISION,
+            local_dir=temporary,
+            allow_patterns=PUBLIC_MODEL_FILES,
+        )
+        verify_artifact(temporary, PUBLIC_MODEL_MANIFEST_SHA256)
+        return convert_verified_model(temporary, target)
+    finally:
+        if temporary.exists():
+            shutil.rmtree(temporary)
 
 
 def prepare_base_model(target: Path) -> Path:

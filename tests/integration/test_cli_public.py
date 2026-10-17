@@ -1,4 +1,5 @@
 import json
+import sys
 
 import pytest
 
@@ -37,9 +38,15 @@ def test_doctor_missing_model_exits_nonzero(monkeypatch, tmp_path, capsys):
 
 
 def test_serve_warns_when_dashboard_assets_are_missing(monkeypatch, capsys):
-    from kjnlae.cli import main
-
     monkeypatch.setattr("kjnlae.api.app.dashboard_dist", lambda: None)
     monkeypatch.setattr("uvicorn.run", lambda *args, **kwargs: None)
     main(["serve"])
     assert "API only" in capsys.readouterr().err
+
+
+def test_serve_without_api_extra_has_actionable_error(monkeypatch, capsys):
+    monkeypatch.setitem(sys.modules, "uvicorn", None)
+    with pytest.raises(SystemExit) as error:
+        main(["serve"])
+    assert error.value.code == 2
+    assert "kjnlae[api]" in capsys.readouterr().err

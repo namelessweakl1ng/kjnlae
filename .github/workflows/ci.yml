@@ -6,7 +6,7 @@ jobs:
   backend:
     strategy:
       matrix:
-        python: ['3.12', '3.13']
+        python: ['3.11', '3.12', '3.13', '3.14']
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,10 +19,12 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: pip install -r requirements-dev.lock && pip install --no-deps -e .
+      - run: python -m pip install -e '.[api,dev]'
       - run: npm --prefix frontend ci --ignore-scripts
       - run: bash scripts/verify_all.sh
-      - run: pip-audit -r requirements.lock
+      - run: python -m pip_audit --progress-spinner off
+      - if: matrix.python == '3.12'
+        run: python scripts/audit_cpu_dependencies.py
       - run: |
           python -m kjnlae.maintainer_cli benchmark --output reports/benchmark && exit 1 || test "$?" -eq 1
           python -c "import json; assert json.load(open('reports/benchmark.json'))['detector']['status'] == 'INCOMPLETE'"
@@ -57,7 +59,7 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-      - run: python -m pip install -e ".[dev]"
+      - run: python -m pip install -e ".[api,dev]"
       - run: python -m pytest -q
       - run: python -m ruff check src tests examples scripts
       - run: python -m mypy src

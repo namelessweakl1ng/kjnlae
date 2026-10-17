@@ -10,16 +10,12 @@ RUN npm run build
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 WORKDIR /app
-COPY requirements.lock ./
 COPY pyproject.toml README.md LICENSE ./
 COPY src/ ./src/
 COPY --from=frontend /build/dist ./frontend/dist/
 RUN --mount=type=secret,id=build_ca \
     if [ -f /run/secrets/build_ca ]; then export PIP_CERT=/run/secrets/build_ca; fi; \
-    pip install -r requirements.lock \
-    && pip install --index-url https://download.pytorch.org/whl/cpu torch==2.6.0+cpu \
-    && pip install transformers==4.51.3 safetensors==0.8.0 \
-    && pip install --no-deps . \
+    pip install '.[api]' \
     && useradd --uid 10001 --create-home gateway
 USER gateway
 EXPOSE 8000

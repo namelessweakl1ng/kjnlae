@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal, TypeVar
+from typing import Generic, Literal, TypeVar
 
 from kjnlae.guards.actions import ActionGateway
 from kjnlae.guards.resources import HostAuthority, ProposedAction, ResourceCatalog
@@ -11,7 +11,7 @@ T = TypeVar("T")
 
 
 @dataclass(frozen=True)
-class ExecutionResult[T]:
+class ExecutionResult(Generic[T]):
     """Distinguish a denied call from a callback with an uncertain outcome."""
 
     status: Literal["EXECUTED", "DENIED", "UNKNOWN"]

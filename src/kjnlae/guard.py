@@ -7,9 +7,9 @@ from time import perf_counter
 from typing import Protocol
 
 from kjnlae.classifiers.artifacts import (
-    PUBLIC_MODEL_MANIFEST_SHA256,
+    ONNX_MANIFEST_SHA256,
     default_model_dir,
-    verify_artifact,
+    verify_onnx_artifact,
 )
 from kjnlae.classifiers.local import LocalClassifier, LocalInference, LocalModelConfig
 from kjnlae.context import TrustedSecurityContext
@@ -56,7 +56,7 @@ class Guard:
                 installed = default_model_dir()
                 if installed.is_dir():
                     directory = str(installed)
-                    manifest_hash = PUBLIC_MODEL_MANIFEST_SHA256
+                    manifest_hash = ONNX_MANIFEST_SHA256
             self.classifier = None
             self.threshold = 0.5
             if directory and manifest_hash:
@@ -64,7 +64,7 @@ class Guard:
                     self._model_missing = True
                 else:
                     try:
-                        artifact = verify_artifact(Path(directory), manifest_hash)
+                        artifact = verify_onnx_artifact(Path(directory), manifest_hash)
                         self.threshold = artifact.threshold
                         self.classifier = LocalClassifier(
                             LocalModelConfig(artifact.path, manifest_hash)

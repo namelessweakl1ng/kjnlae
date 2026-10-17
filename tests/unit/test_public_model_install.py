@@ -7,6 +7,7 @@ import pytest
 from kjnlae.classifiers.artifacts import (
     PUBLIC_MODEL_MANIFEST_SHA256,
     default_model_dir,
+    download_onnx_model,
     download_public_model,
 )
 
@@ -14,13 +15,13 @@ from kjnlae.classifiers.artifacts import (
 def test_default_model_location_is_not_a_working_directory(monkeypatch, tmp_path):
     monkeypatch.setattr("kjnlae.classifiers.artifacts.sys.platform", "linux")
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    assert default_model_dir() == tmp_path / "kjnlae" / "models" / "reviewed-v0.2"
+    assert default_model_dir() == tmp_path / "kjnlae" / "models" / "reviewed-v0.2-onnx"
 
 
 def test_windows_data_location_uses_local_app_data(monkeypatch, tmp_path):
     monkeypatch.setattr("kjnlae.classifiers.artifacts.sys.platform", "win32")
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-    assert default_model_dir() == tmp_path / "kjnlae" / "models" / "reviewed-v0.2"
+    assert default_model_dir() == tmp_path / "kjnlae" / "models" / "reviewed-v0.2-onnx"
 
 
 def test_macos_data_location_uses_application_support(monkeypatch, tmp_path):
@@ -28,7 +29,7 @@ def test_macos_data_location_uses_application_support(monkeypatch, tmp_path):
     monkeypatch.setattr("kjnlae.classifiers.artifacts.Path.home", lambda: tmp_path)
     assert (
         default_model_dir()
-        == tmp_path / "Library" / "Application Support" / "kjnlae" / "models" / "reviewed-v0.2"
+        == tmp_path / "Library" / "Application Support" / "kjnlae" / "models" / "reviewed-v0.2-onnx"
     )
 
 
@@ -63,3 +64,20 @@ def test_download_is_pinned_and_refuses_overwrite(monkeypatch, tmp_path):
     with pytest.raises(FileExistsError):
         download_public_model(target)
     assert len(calls) == 1
+
+
+def test_failed_onnx_download_cleans_staging_without_overwriting(monkeypatch, tmp_path):
+    def interrupted(**_kwargs):
+        raise ConnectionError("interrupted")
+
+    monkeypatch.setitem(
+        sys.modules, "huggingface_hub", SimpleNamespace(snapshot_download=interrupted)
+    )
+    destination = tmp_path / "reviewed-v0.2-onnx"
+    with pytest.raises(ConnectionError, match="interrupted"):
+        download_onnx_model(destination)
+    assert not destination.exists()
+    assert list(tmp_path.iterdir()) == []
+    destination.mkdir()
+    with pytest.raises(FileExistsError):
+        download_onnx_model(destination)

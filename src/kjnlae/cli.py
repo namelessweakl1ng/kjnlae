@@ -7,12 +7,10 @@ from pathlib import Path
 
 from kjnlae import Guard
 from kjnlae.classifiers.artifacts import (
-    PUBLIC_MODEL_MANIFEST_SHA256,
-    PUBLIC_MODEL_REPO,
-    PUBLIC_MODEL_REVISION,
+    ONNX_MANIFEST_SHA256,
     default_model_dir,
-    download_public_model,
-    verify_artifact,
+    download_onnx_model,
+    verify_onnx_artifact,
 )
 
 SOURCES = ("user", "retrieved_document", "webpage", "email", "attachment", "tool_response", "agent")
@@ -24,14 +22,11 @@ def _parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     model = commands.add_parser("model", help="Install or verify the reviewed local model")
     models = model.add_subparsers(dest="model_command", required=True)
-    download = models.add_parser("download", help="Download and verify a pinned model snapshot")
+    download = models.add_parser("download", help="Download and convert the pinned model")
     download.add_argument("--directory", type=Path, default=default_model_dir())
-    download.add_argument("--repo", default=PUBLIC_MODEL_REPO)
-    download.add_argument("--revision", default=PUBLIC_MODEL_REVISION)
-    download.add_argument("--hash", default=PUBLIC_MODEL_MANIFEST_SHA256)
     verify = models.add_parser("verify", help="Verify installed model files against a manifest pin")
     verify.add_argument("--directory", type=Path, default=default_model_dir())
-    verify.add_argument("--hash", default=PUBLIC_MODEL_MANIFEST_SHA256)
+    verify.add_argument("--hash", default=ONNX_MANIFEST_SHA256)
     commands.add_parser("doctor", help="Verify model identity and run real local inference")
     scan = commands.add_parser("scan", help="Inspect one bounded text")
     scan.add_argument("--text", help="Text to inspect; otherwise read UTF-8 standard input")
@@ -49,14 +44,9 @@ def main(argv: list[str] | None = None) -> None:
     try:
         if args.command == "model":
             if args.model_command == "download":
-                artifact = download_public_model(
-                    args.directory,
-                    repository=args.repo,
-                    revision=args.revision,
-                    manifest_hash=args.hash,
-                )
+                artifact = download_onnx_model(args.directory)
             else:
-                artifact = verify_artifact(args.directory, args.hash)
+                artifact = verify_onnx_artifact(args.directory, args.hash)
             print(
                 json.dumps(
                     {
@@ -70,7 +60,10 @@ def main(argv: list[str] | None = None) -> None:
             )
             return
         if args.command == "serve":
-            import uvicorn
+            try:
+                import uvicorn
+            except ImportError:
+                parser.error("Serving the API requires `python -m pip install 'kjnlae[api]'`")
 
             from kjnlae.api.app import dashboard_dist
 

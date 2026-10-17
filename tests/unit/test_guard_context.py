@@ -10,7 +10,7 @@ def test_guard_context_manager_closes_owned_classifier(monkeypatch, tmp_path):
     # exercises Guard's context-manager cleanup without loading model weights.
     artifact = ArtifactManifest(tmp_path, "a" * 64, "test", "base", 1, 0.5, "EXPERIMENTAL")
     closed = []
-    monkeypatch.setattr("kjnlae.guard.verify_artifact", lambda *_: artifact)
+    monkeypatch.setattr("kjnlae.guard.verify_onnx_artifact", lambda *_: artifact)
     monkeypatch.setattr(LocalClassifier, "close", lambda self: closed.append(self))
     with Guard(model_dir=str(tmp_path), model_hash="a" * 64) as guard:
         assert isinstance(guard.classifier, LocalClassifier)

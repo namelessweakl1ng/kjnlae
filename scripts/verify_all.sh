@@ -3,12 +3,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [[ "${KJNLAE_VERIFY_RELEASE:-0}" == "1" ]]; then
-  if [[ -z "${KJNLAE_TEST_MODEL_DIR:-}" || -z "${KJNLAE_TEST_MODEL_HASH:-}" ]]; then
-    echo "Release verification requires KJNLAE_TEST_MODEL_DIR and KJNLAE_TEST_MODEL_HASH" >&2
+  if [[ -z "${KJNLAE_TEST_ONNX_DIR:-}" || -z "${KJNLAE_TEST_ONNX_HASH:-}" ]]; then
+    echo "Release verification requires KJNLAE_TEST_ONNX_DIR and KJNLAE_TEST_ONNX_HASH" >&2
     exit 2
   fi
-  export KJNLAE_MODEL_DIR="$KJNLAE_TEST_MODEL_DIR"
-  export KJNLAE_MODEL_HASH="$KJNLAE_TEST_MODEL_HASH"
+  export KJNLAE_MODEL_DIR="$KJNLAE_TEST_ONNX_DIR"
+  export KJNLAE_MODEL_HASH="$KJNLAE_TEST_ONNX_HASH"
 fi
 
 PY=.venv/bin/python

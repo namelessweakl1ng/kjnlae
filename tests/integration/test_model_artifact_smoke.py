@@ -31,8 +31,8 @@ def test_real_weight_single_window_inference() -> None:
 
 @pytest.mark.model
 def test_verified_trained_model_scans_all_views() -> None:
-    model_path = os.getenv("KJNLAE_TEST_MODEL_DIR")
-    manifest_hash = os.getenv("KJNLAE_TEST_MODEL_HASH")
+    model_path = os.getenv("KJNLAE_TEST_ONNX_DIR")
+    manifest_hash = os.getenv("KJNLAE_TEST_ONNX_HASH")
     if not model_path or not manifest_hash:
         pytest.skip("Set both local trained model path and manifest hash")
     classifier = LocalClassifier(LocalModelConfig(Path(model_path), manifest_hash))
@@ -48,8 +48,8 @@ def test_verified_trained_model_scans_all_views() -> None:
 
 @pytest.mark.model
 def test_real_weight_http_scan_and_readiness(tmp_path) -> None:
-    model_path = os.getenv("KJNLAE_TEST_MODEL_DIR")
-    manifest_hash = os.getenv("KJNLAE_TEST_MODEL_HASH")
+    model_path = os.getenv("KJNLAE_TEST_ONNX_DIR")
+    manifest_hash = os.getenv("KJNLAE_TEST_ONNX_HASH")
     if not model_path or not manifest_hash:
         pytest.skip("Set local trained model path and manifest hash")
     settings = Settings(model_dir=model_path, model_hash=manifest_hash)
@@ -66,8 +66,8 @@ def test_real_weight_http_scan_and_readiness(tmp_path) -> None:
 
 @pytest.mark.model
 def test_real_weight_host_boundaries() -> None:
-    model_path = os.getenv("KJNLAE_TEST_MODEL_DIR")
-    manifest_hash = os.getenv("KJNLAE_TEST_MODEL_HASH")
+    model_path = os.getenv("KJNLAE_TEST_ONNX_DIR")
+    manifest_hash = os.getenv("KJNLAE_TEST_ONNX_HASH")
     if not model_path or not manifest_hash:
         pytest.skip("Set local trained model path and manifest hash")
     guard = Guard(model_dir=model_path, model_hash=manifest_hash)
@@ -85,8 +85,8 @@ def test_real_weight_host_boundaries() -> None:
 
 @pytest.mark.model
 def test_real_weight_chatbot_http() -> None:
-    model_path = os.getenv("KJNLAE_TEST_MODEL_DIR")
-    manifest_hash = os.getenv("KJNLAE_TEST_MODEL_HASH")
+    model_path = os.getenv("KJNLAE_TEST_ONNX_DIR")
+    manifest_hash = os.getenv("KJNLAE_TEST_ONNX_HASH")
     if not model_path or not manifest_hash:
         pytest.skip("Set local trained model path and manifest hash")
     guard = Guard(model_dir=model_path, model_hash=manifest_hash)
