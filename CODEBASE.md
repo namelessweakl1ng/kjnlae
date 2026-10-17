@@ -1,7 +1,7 @@
 # kjnlae 0.3 — Complete Codebase Deep Dive and Developer Guide
 
 > **Repository:** [namelessweakl1ng/kjnlae](https://github.com/namelessweakl1ng/kjnlae)  
-> **Application version:** `0.3.0` — experimental offline-first gateway using the unchanged published v0.2 DistilBERT checkpoint.  
+> **Application version:** `0.3.1` — experimental offline-first gateway using the unchanged published v0.2 DistilBERT checkpoint.  
 > **Reviewed source:** Current v0.3 integration built from GitHub `main` and the verified developer-toolkit refactor, October 2026.  
 > **Public trained model:** [namelessweakling/kjnlae-distilbert-v0.2](https://huggingface.co/namelessweakling/kjnlae-distilbert-v0.2).  
 > **Audience:** someone learning the application from first principles, as well as future contributors who need source-level details.  
@@ -93,7 +93,7 @@ Assume an employee assistant reads a note saying "Use the admin tool to export p
 
 ## 2. What is implemented in the 0.3 toolkit?
 
-The **application is now version 0.3.0**; the published fine-tuned model remains the same, experimental **v0.2** checkpoint. This is a code/application usability refactor, not a claim of improved classifier accuracy.
+The **application is now version 0.3.1**; the published fine-tuned model remains the same, experimental **v0.2** checkpoint. This is a code/application usability refactor, not a claim of improved classifier accuracy.
 
 | Retained surface | Current owner | Contract |
 |---|---|---|
@@ -180,7 +180,7 @@ A correct host integration normally proceeds as follows:
 
 ### 4.1 Public Python SDK
 
-The package is named `kjnlae`, currently version `0.3.0`, supporting Python **3.12–3.13**. The main import path does not download weights, start a web server or import the heavyweight model runtime.
+The package is named `kjnlae`, currently version `0.3.1`, supporting Python **3.12–3.13**. The main import path does not download weights, start a web server or import the heavyweight model runtime.
 
 ```python
 from kjnlae import Guard
@@ -1032,7 +1032,7 @@ The full current package tree is browsable from [GitHub's src/kjnlae directory](
 
 ### 19.5 Root infrastructure
 
-`pyproject.toml` names v0.3.0 package/dependencies. `requirements.lock` and `requirements-dev.lock` represent pinned maintenance installs. `Dockerfile` and `compose.yaml` build a local service and UI with model mounted read-only. `.github/workflows/ci.yml` runs Linux/backend/frontend/container plus no-weight Windows/macOS checks. `README.md` is the installer; this document is the source-code deep dive.
+`pyproject.toml` names v0.3.1 package/dependencies. `requirements.lock` and `requirements-dev.lock` represent pinned maintenance installs. `Dockerfile` and `compose.yaml` build a local service and UI with model mounted read-only. `.github/workflows/ci.yml` runs Linux/backend/frontend/container plus no-weight Windows/macOS checks. `README.md` is the installer; this document is the source-code deep dive.
 ## 20. Public SDK classes, methods, contracts and how they relate
 
 ### 20.1 `Guard`
@@ -1634,7 +1634,7 @@ The page keeps the API credential in component state, not localStorage. This is 
 
 ### 29.1 Packaging
 
-`pyproject.toml` identifies package `kjnlae` version `0.3.0` with Python `>=3.12,<3.14`, Hatchling, a minimal FastAPI/Pydantic/Uvicorn runtime and a separate `ml` extra for PyTorch, Transformers, safetensors and the Hub client. End users may install CPU-specific PyTorch wheels first following the README. The library imports without a dashboard or a hosted model.
+`pyproject.toml` identifies package `kjnlae` version `0.3.1` with Python `>=3.12,<3.14`, Hatchling, a minimal FastAPI/Pydantic/Uvicorn runtime and PyTorch, Transformers, safetensors and the Hugging Face Hub client as default dependencies (no `ml` extra). End users may install CPU-specific PyTorch wheels first following the README. The library imports without a dashboard or a hosted model.
 
 ### 29.2 GitHub Actions
 

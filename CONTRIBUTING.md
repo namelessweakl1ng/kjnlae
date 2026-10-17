@@ -1,6 +1,6 @@
 # Contributing
 
-Use Python 3.12+ and Node 24. Follow README installation commands with the locked dependency files. Keep core inspection/policy independent of HTTP, use original fixtures, and preserve evidence offsets and trust metadata.
+Use Python 3.12 or 3.13 and Node 24. Follow README installation commands with the locked dependency files. Keep core inspection/policy independent of HTTP, use original fixtures, and preserve evidence offsets and trust metadata.
 
 Before submitting changes run `pytest`, `ruff check .`, `ruff format --check .`, `mypy src`, `pip-audit -r requirements.lock`, and frontend `npm test`, `npm run build`, `npm audit`. Container changes also need `docker compose up --build -d --wait` and the functional smoke script. Optional real-model tests need lawful reviewed cached weights; do not describe mocks as real-model validation.
 

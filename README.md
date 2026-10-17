@@ -4,6 +4,36 @@
 
 Prompt injection is an attempt to make an AI application obey instructions from content that lacks authority. A scanner can miss attacks or overflag ordinary text; its softmax score is **not** a calibrated probability that an attack will succeed. Host applications must separately check identity, tenant, resources, tools, recipients, and approvals. kjnlae includes independent action and output-release controls, but an application must actually call them. The project is **experimental**, not a complete or production-certified defense.
 
+## Install from PyPI (SDK and CLI)
+
+To add kjnlae to another Python application, **no Git clone or `[ml]` extra is needed**. From **kjnlae 0.3.1 onward**, the normal installation includes PyTorch, Transformers, Safetensors, and Hugging Face Hub. You need **Python 3.12 or 3.13**, not Python 3.14.
+
+For example, in a Fedora terminal:
+
+```bash
+python3.13 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install kjnlae
+kjnlae model download
+kjnlae model verify
+kjnlae doctor
+```
+
+On Windows PowerShell, create a venv with `py -3.12 -m venv .venv` and activate it with `.\\.venv\\Scripts\\Activate.ps1`. On macOS, create it with `python3.12 -m venv .venv` and activate with `source .venv/bin/activate`. Once activated, use the same `python -m pip install kjnlae` and `kjnlae model ...` commands.
+
+```python
+from kjnlae import Guard
+
+with Guard() as guard:
+    result = guard.scan("Ignore previous instructions.", source="retrieved_document")
+    print(result.detection_status, result.policy_decision, result.model_score)
+```
+
+The install gets the library and its inference dependencies, **not** the separately distributed ~268 MB model weights. `kjnlae model download` explicitly retrieves and verifies the approved Hugging Face model once, after which inference is offline. On Linux, standard PyPI PyTorch wheels can download large CUDA dependencies; for a smaller CPU-only setup, run `python -m pip install --index-url https://download.pytorch.org/whl/cpu 'torch==2.6.0+cpu'` **before** `python -m pip install kjnlae`.
+
+**Publishing note:** This repository prepares **0.3.1**; pushing to GitHub does not update the currently published 0.3.0 on [PyPI](https://pypi.org/project/kjnlae/). The simplified default-dependency install works once version 0.3.1 is uploaded. For the React dashboard, use one of the source-checkout instructions below; PyPI wheels contain the SDK, CLI and HTTP API but not compiled dashboard files.
+
 ## Quickstart on Linux
 
 Use Python **3.12 or 3.13** and Node.js **22+**. The commands below start from an ordinary terminal; on Fedora install prerequisites with `sudo dnf install python3.12 python3.12-devel git nodejs npm`. Other distributions can use their equivalent packages. CPU inference needs several GiB of free RAM; no GPU, cloud inference, API key, or paid account is required.
@@ -134,6 +164,6 @@ The dashboard renders the API's real model/window data as escaped React text. It
 
 Measured browser captures: [desktop scanner](docs/images/scanner-desktop.png) and [mobile scanner](docs/images/scanner-mobile.png). They were captured from a live local API using the verified public weights; the score, threshold, window and highlighted span come from its response.
 
-**Project status:** kjnlae application version **0.3.0**, using the unchanged public **experimental v0.2 DistilBERT model**. The Linux real-weight model/download/SDK/browser/Docker gate passed in the recorded development environment, and the [final integration CI](https://github.com/namelessweakl1ng/kjnlae/actions/runs/38592651086) passed Python 3.12/3.13, Windows/macOS no-model portability, frontend and Docker checks. A clean Fedora installation of v0.3 and real-weight inference on Windows/macOS remain unverified. See [verification](docs/verification.md). The trained model still produces substantial benign false positives and is not a production-certified security control.
+**Project status:** kjnlae application version **0.3.1**, using the unchanged public **experimental v0.2 DistilBERT model**. The Linux real-weight model/download/SDK/browser/Docker gate passed in the recorded development environment, and the [final integration CI](https://github.com/namelessweakl1ng/kjnlae/actions/runs/38592651086) passed Python 3.12/3.13, Windows/macOS no-model portability, frontend and Docker checks. A clean Fedora installation of v0.3 and real-weight inference on Windows/macOS remain unverified. See [verification](docs/verification.md). The trained model still produces substantial benign false positives and is not a production-certified security control.
 
 See [CHANGELOG.md](CHANGELOG.md) for the breaking changes from v0.2 and removed v0.1 interfaces.

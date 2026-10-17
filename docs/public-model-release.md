@@ -15,7 +15,7 @@ The released weights declare Apache-2.0; the application source is MIT. Review [
 | Selected trained steps | 462 |
 | Quality status | `EXPERIMENTAL` |
 
-**Prerequisites:** install Python 3.12 or 3.13, the CPU model dependencies, and the application from GitHub as described in [README — Linux, Windows PowerShell and macOS](../README.md). The published v0.2 model is freely downloadable; ordinary users do not need a Hub login/token.
+**Prerequisites:** install Python 3.12 or 3.13, then install the SDK/CLI with `python -m pip install kjnlae` (from the 0.3.1 PyPI release onward). This includes the model runtime libraries by default. For the React dashboard or a smaller CPU-only PyTorch setup, see the [README platform instructions](../README.md). The published v0.2 model is freely downloadable; ordinary users do not need a Hub login/token.
 
 The same commands work in Linux, Windows PowerShell and macOS terminals after activating the project's virtual environment:
 
@@ -51,4 +51,4 @@ The original v0.2 checkpoint successfully passed public Hugging Face download/in
 
 Do not silently overwrite v0.2's pinned weights. Retrain on lawfully acquired separated data, evaluate against frozen independent suites, produce a new manifest/sha256, publish a distinct version/revision and update the default installer pin and regression tests deliberately. The fine-tuned model's benign false-positive rate remains substantial in some tested distributions.
 
-The project is installed from GitHub; **no PyPI release is claimed**. A source checkout + built frontend or the Docker reference setup is needed for the web dashboard: standalone Python wheels do not currently bundle compiled React assets.
+The SDK and CLI are distributed on [PyPI](https://pypi.org/project/kjnlae/). Version 0.3.1's default model-runtime dependencies require a separate PyPI release after the GitHub source changes are merged. A source checkout + built frontend or the Docker reference setup is needed for the web dashboard: standalone Python wheels do not currently bundle compiled React assets.

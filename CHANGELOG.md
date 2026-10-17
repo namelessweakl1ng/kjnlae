@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 — default model dependencies (pending PyPI upload)
+
+- `pip install kjnlae` now includes PyTorch, Transformers, Safetensors and Hugging Face Hub dependencies without requiring `[ml]`.
+- Updated PyPI-first setup instructions and package-metadata verification tests. Model weight download is still explicit and hash-verified.
+- Application and SDK versions are updated to 0.3.1. Python support remains 3.12/3.13; the experimental public v0.2 checkpoint remains unchanged.
+- This source release requires a separate PyPI upload to become available to users.
+
+
 ## 0.3.0 — experimental developer-toolkit cleanup (2026-10-14)
 
 - Added a pinned public-model download and verification workflow, per-user model paths, an SDK context manager, and full scored-window/threshold scan results. The model weights and their manifest identity are unchanged.

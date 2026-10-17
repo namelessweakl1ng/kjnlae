@@ -1,4 +1,6 @@
-# Tested runtime dependencies, Python 3.12
+# Tested lightweight backend/API pins, Python 3.12
+# Not a complete inference environment lock: Docker installs compatible CPU
+# PyTorch/Transformers/Safetensors separately; PyPI defaults include ML libraries.
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.15.1
