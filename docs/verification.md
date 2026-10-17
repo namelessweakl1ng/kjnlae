@@ -1,5 +1,13 @@
 # Verification record
 
+## Current 0.3.2 CPU/ONNX branch, 2026-10-17
+
+The historical checks below were performed against earlier PyTorch-based revisions. The current `feat/cpu-onnx-runtime` branch was checked separately in the Linux x86-64 cloud workspace. The locally built 0.3.2 wheel installed and ran real ONNX inference on Python 3.11, 3.12, 3.13 and 3.14; Windows/macOS/ARM have no real-weight result. The original checkpoint and its public manifest were left untouched.
+
+`KJNLAE_VERIFY_RELEASE=1 KJNLAE_TEST_MODEL_DIR=/workspace/kjnlae-work/reviewed-model KJNLAE_TEST_ONNX_DIR=/workspace/kjnlae-work/onnx-model KJNLAE_TEST_ONNX_HASH=6b69bd6a790119d4c53fe2df02447114eebcdadddec18d788bf1cf6825ecfa1c bash scripts/verify_all.sh` completed with **117 Python tests passed**, Ruff lint/format, strict mypy, **7 frontend tests**, frontend build, Python wheel build, real ONNX `doctor` and real-model fixture benchmark. One upstream Starlette deprecation warning was emitted. Local `pip-audit` on the clean CPU wheel environment and `npm audit` found no known dependency vulnerabilities at check time; `pip-audit` skipped the not-yet-published `kjnlae` 0.3.2 package itself, so this is not a source-code security audit. The Python test count includes the real-worker long-input regression that found and fixed embedded tokenizer truncation. See [runtime measurements and comparison](onnx-runtime.md) and the three committed [per-window reports](reports/onnx-parity-deepset.json).
+
+The Docker image built locally from the CPU-only dependency set. A container without a model passed degraded-state HTTP checks, and a container with a read-only, UID-10001-readable copy of the verified ONNX artifact passed ready-state scanning and independent action-denial checks. The initial build needed the managed cloud proxy hostname and CA passed to BuildKit; these are environment-specific build prerequisites, not application dependencies. The local image is not a hosted CI result. No model weights were baked into it. Hosted feature-branch CI has not yet been observed, and the source branch has not been published to PyPI.
+
 The refactor was checked in the managed Linux cloud workspace on 2026-10-14. Python 3.12, four CPU cores, the reviewed public DistilBERT weights, Chromium, Docker, and Node 24 were available. These are executed results, not forecasts for another machine.
 
 The base v0.2 branch separately recorded a successful **Fedora 44 / Python 3.13** fresh install and release gate (86 Python tests, four frontend tests, Ruff, strict mypy, real doctor/benchmark) and hosted push/PR CI. Those checks predate this cleanup, so they do not verify the new CLI, installer, dashboard, or cross-platform worker changes.

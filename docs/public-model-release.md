@@ -1,5 +1,7 @@
 # kjnlae public model distribution
 
+**Application 0.3.2 update:** This page records the immutable original PyTorch/safetensors checkpoint. The default scanner now downloads that pinned source and derives a separately hashed ONNX CPU artifact in `reviewed-v0.2-onnx`. The original directory and manifest hash below remain for training/research only. Use [the ONNX runtime guide](onnx-runtime.md) for current end-user paths, checksums, measurements and migration. No new weights were uploaded.
+
 The **kjnlae 0.3 application** uses the unchanged, **experimental v0.2 trained DistilBERT artifact**, publicly hosted at [namelessweakling/kjnlae-distilbert-v0.2](https://huggingface.co/namelessweakling/kjnlae-distilbert-v0.2). The Python SDK, CLI, HTTP adapter and frontend live in [GitHub](https://github.com/namelessweakl1ng/kjnlae); the model weights are **not** committed to Git.
 
 The released weights declare Apache-2.0; the application source is MIT. Review [model provenance](model-data.md), the [model card](model-card-v0.2.md), and [limitations](limitations.md) for training-data attribution and known false positives. These weights are **not production-certified**.

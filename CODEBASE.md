@@ -1,13 +1,13 @@
 # kjnlae 0.3 — Complete Codebase Deep Dive and Developer Guide
 
 > **Repository:** [namelessweakl1ng/kjnlae](https://github.com/namelessweakl1ng/kjnlae)  
-> **Application version:** `0.3.1` — experimental offline-first gateway using the unchanged published v0.2 DistilBERT checkpoint.  
+> **Application version:** `0.3.2` — experimental offline-first gateway using a verified ONNX derivative of the unchanged published v0.2 DistilBERT checkpoint.
 > **Reviewed source:** Current v0.3 integration built from GitHub `main` and the verified developer-toolkit refactor, October 2026.  
 > **Public trained model:** [namelessweakling/kjnlae-distilbert-v0.2](https://huggingface.co/namelessweakling/kjnlae-distilbert-v0.2).  
 > **Audience:** someone learning the application from first principles, as well as future contributors who need source-level details.  
 > **Scope:** source explanation and previously executed verification evidence, **not** a new penetration test or a claim of production-grade security.
 
-**Guide scope.** This is the detailed source-oriented reference for the **0.3 application** with the unchanged **experimental v0.2 model**. It retains core learning, source-symbol, security and training detail while omitting deleted history/legacy infrastructure. The [README](README.md) is the beginner-friendly cross-platform installation guide. The original model evaluation remains unchanged by this cleanup.
+**Guide scope.** This is the detailed source-oriented reference for the **0.3.2 application** with a verified ONNX derivative of the unchanged **experimental v0.2 model**. It retains core learning, source-symbol, security and training detail while omitting deleted history/legacy infrastructure. The [README](README.md) is the installation guide; [runtime provenance](docs/onnx-runtime.md) has current measurements and compatibility limits. The original model evaluation remains unchanged by this conversion.
 
 ## Table of contents
 
@@ -93,7 +93,7 @@ Assume an employee assistant reads a note saying "Use the admin tool to export p
 
 ## 2. What is implemented in the 0.3 toolkit?
 
-The **application is now version 0.3.1**; the published fine-tuned model remains the same, experimental **v0.2** checkpoint. This is a code/application usability refactor, not a claim of improved classifier accuracy.
+The **application is now version 0.3.2**; the published fine-tuned model remains the same, experimental **v0.2** checkpoint. This is a code/application usability refactor, not a claim of improved classifier accuracy.
 
 | Retained surface | Current owner | Contract |
 |---|---|---|
@@ -107,7 +107,7 @@ The **application is now version 0.3.1**; the published fine-tuned model remains
 | Permission controls | `guards/resources.py`, `guards/actions.py`, `guards/executor.py` | Authenticated host grants, one-use approval and current-version callback |
 | Output controls | `guards/output.py` | Configured known-secret/link/field checks and independently authorized release |
 | Reproducibility | `training/`, `evaluation/`, `docs/model-data.md` | Separate maintainer workflows, frozen artifact hash and recorded evaluation |
-| Cross-platform checks | `.github/workflows/ci.yml` | Python 3.12/3.13 Linux checks; Windows/macOS without real weights; frontend and container |
+| Cross-platform checks | `.github/workflows/ci.yml` | Python 3.11–3.14 Linux checks; Windows/macOS without real weights; frontend and container |
 
 No old HTTP scan/action/output API is kept. The old rule/signature detector is gone. Development-only history, lab and evaluation pages are no longer in the UI, and the SQLite history store was removed. The **SDK itself does not need the HTTP server or React**.
 
@@ -180,7 +180,7 @@ A correct host integration normally proceeds as follows:
 
 ### 4.1 Public Python SDK
 
-The package is named `kjnlae`, currently version `0.3.1`, supporting Python **3.12–3.13**. The main import path does not download weights, start a web server or import the heavyweight model runtime.
+The package is named `kjnlae`, currently version `0.3.2`, supporting Python **3.11–3.14** where runtime wheels are available. The main import path does not download weights, start a web server or import the heavyweight model runtime.
 
 ```python
 from kjnlae import Guard
@@ -303,7 +303,7 @@ The preprocessing module always makes an `original` view. It may add a Unicode N
 
 The local wrapper checks for the model directory, acquires a non-blocking worker lock, and lazily starts a separate spawned process. The worker verifies the manifest, loads tokenizer and trained weights from the local directory, and tokenizes every view with a source/context prefix.
 
-Text longer than one window is divided into overlapping token windows rather than silently truncated to the first 128 tokens. All supported views/windows must fit configured limits; incomplete coverage returns an error/incomplete outcome. PyTorch computes the softmax score for class **1 = INJECTION**, and the worker returns the **maximum window score** plus per-window spans.
+Text longer than one window is divided into overlapping token windows rather than silently truncated to the first 128 tokens. All supported views/windows must fit configured limits; incomplete coverage returns an error/incomplete outcome. ONNX Runtime supplies logits; NumPy computes the softmax score for class **1 = INJECTION**, and the worker returns the **maximum window score** plus per-window spans.
 
 ### 6.5 `InputPolicy.decide`
 
@@ -369,7 +369,7 @@ This tells the model the declared source category. It does **not** make an attac
 
 ### 7.3 Inference and model score
 
-The tokenizer maps characters into token IDs and masks. DistilBERT produces two logits; PyTorch softmax produces a value for class `1`. That score measures the model's learned tendency to output "INJECTION" for the provided window, **not** the probability the content can compromise a particular deployed LLM. The worker aggregates windows with `max(scores)`. That means even one high-scoring window can make a long document suspicious; this choice improves sensitivity but can also amplify false positives.
+The tokenizer maps characters into token IDs and masks. DistilBERT produces two logits; the worker computes a softmax value for class `1` from ONNX logits. That score measures the model's learned tendency to output "INJECTION" for the provided window, **not** the probability the content can compromise a particular deployed LLM. The worker aggregates windows with `max(scores)`. That means even one high-scoring window can make a long document suspicious; this choice improves sensitivity but can also amplify false positives.
 
 ### 7.4 Why there is no regex attack detector
 
@@ -809,7 +809,7 @@ The **README** contains copyable platform-specific instructions for [Linux](READ
 
 ### 15.2 Install requirements
 
-The app supports Python **3.12/3.13**; PyTorch/Transformers/safetensors are installed for local CPU inference. Node.js 22+ is needed only to build/use the browser dashboard from source. Other developers can integrate `from kjnlae import Guard` without launching a browser or external model service.
+The app supports Python **3.11–3.14** on Linux x86-64; ONNX Runtime CPU, Tokenizers and NumPy are installed for local inference. PyTorch/Transformers are optional maintainer training dependencies. Node.js 22+ is needed only to build/use the browser dashboard from source. Other developers can integrate `from kjnlae import Guard` without launching a browser or external model service.
 
 ### 15.3 Model setup after Python installation
 
@@ -821,24 +821,24 @@ kjnlae scan --source retrieved_document --text "Summarize this document."
 kjnlae serve
 ```
 
-The download command installs the default approved model into an OS-specific **per-user** path (not the Git checkout). It verifies the public model commit and SHA-256 manifest. Guard locates it automatically, and no long hash needs to be pasted by first-time users.
+The download command installs a verified ONNX derivative into an OS-specific **per-user** path (not the Git checkout). It verifies the original public model commit, source manifest and files, then the derived graph hash/manifest. Guard locates it automatically, and no long hash needs to be pasted by first-time users. `serve` requires the optional `[api]` extra.
 
 | OS | Default model path |
 |---|---|
-| Linux | `~/.local/share/kjnlae/models/reviewed-v0.2` or `$XDG_DATA_HOME` |
-| Windows | `%LOCALAPPDATA%\\kjnlae\\models\\reviewed-v0.2` |
-| macOS | `~/Library/Application Support/kjnlae/models/reviewed-v0.2` |
+| Linux | `~/.local/share/kjnlae/models/reviewed-v0.2-onnx` or `$XDG_DATA_HOME` |
+| Windows | `%LOCALAPPDATA%\\kjnlae\\models\\reviewed-v0.2-onnx` |
+| macOS | `~/Library/Application Support/kjnlae/models/reviewed-v0.2-onnx` |
 
 ### 15.4 Windows and macOS verification boundaries
 
-GitHub CI installs/imports/tests the code on Windows/macOS and exercises the no-model path. An actual-weight inference run on these platforms has **not** yet been demonstrated; do not claim more than the evidence supports. Linux local real-weight download/inference, browser and Docker smokes passed in the agent's managed workspace.
+The feature-branch CI is configured to install/import/test the code on Windows/macOS and exercise the no-model path. An actual-weight inference run on these platforms has **not** yet been demonstrated; do not claim more than the evidence supports. Linux x86-64 real-weight inference was run on Python 3.11–3.14; earlier browser and Docker smokes used the previous runtime.
 
 ### 15.5 Offline after installation
 
 Runtime `LocalClassifier` sets `local_files_only=True` and `trust_remote_code=False`; it loads only approved safetensors. No network service is used to scan. Model download requires internet and is explicit, and the verified installer refuses to overwrite a previous directory.
 ## 16. Tests, GitHub CI and local release gate
 
-The original model evaluation is unchanged by the application refactor. On the cleanup branch the agent recorded **94 Python tests**, **six frontend tests**, Ruff, strict mypy, frontend build, source-wheel build, a real-weight Linux release gate, and local browser/Docker smoke success. GitHub Actions independently passed six jobs: Python 3.12, Python 3.13, frontend, container, Windows and macOS. Refer to [verification](docs/verification.md) for the precise distinction between executed evidence and unverified real-weight platforms.
+The original model evaluation is unchanged by the application refactor. **Historical, pre-ONNX evidence:** the earlier cleanup branch recorded 94 Python tests, six frontend tests, Ruff, strict mypy, frontend build, source-wheel build, a real-weight Linux release gate, and local browser/Docker smoke success. Its hosted GitHub Actions passed six jobs. Those results do not validate the 0.3.2 ONNX path; see [runtime provenance](docs/onnx-runtime.md) and [verification](docs/verification.md) for current evidence.
 
 ### 16.1 Core quality commands
 
@@ -1032,7 +1032,7 @@ The full current package tree is browsable from [GitHub's src/kjnlae directory](
 
 ### 19.5 Root infrastructure
 
-`pyproject.toml` names v0.3.1 package/dependencies. `requirements.lock` and `requirements-dev.lock` represent pinned maintenance installs. `Dockerfile` and `compose.yaml` build a local service and UI with model mounted read-only. `.github/workflows/ci.yml` runs Linux/backend/frontend/container plus no-weight Windows/macOS checks. `README.md` is the installer; this document is the source-code deep dive.
+`pyproject.toml` names v0.3.2 package/dependencies. The obsolete runtime lockfiles were removed; `pyproject.toml` is the single dependency source. `Dockerfile` and `compose.yaml` build a local service and UI with model mounted read-only. `.github/workflows/ci.yml` runs Linux/backend/frontend/container plus no-weight Windows/macOS checks. `README.md` is the installer; this document is the source-code deep dive.
 ## 20. Public SDK classes, methods, contracts and how they relate
 
 ### 20.1 `Guard`
@@ -1138,7 +1138,7 @@ Open `tests/unit/test_preprocessing.py` and `tests/unit/test_model_windows.py`. 
 
 ### 22.1 Why use a separate spawned process?
 
-Loading PyTorch and Transformers may take memory and time. The project starts a dedicated spawned CPU process lazily so it can enforce resource limits, communicate only structured results and terminate a stuck worker. A process boundary does not create perfect adversarial isolation, but it limits the ways model inference can monopolize the main FastAPI process.
+Loading ONNX Runtime and the model graph takes memory and time. The project starts a dedicated spawned CPU process lazily so it can enforce resource limits, communicate only structured results and terminate a stuck worker. A process boundary does not create perfect adversarial isolation, but it limits the ways model inference can monopolize the main FastAPI process.
 
 `LocalClassifier` holds the process, parent pipe and a thread lock. The local worker receives view data and source, returns scores/reasons, and is shut down on guard closure. The worker imports heavy ML dependencies internally, so importing the lightweight SDK does not automatically import the whole training stack.
 
@@ -1151,7 +1151,7 @@ Loading PyTorch and Transformers may take memory and time. The project starts a 
 | `token_limit` | 128 | Maximum token IDs per model input, including prefix/specials |
 | `overlap` | 32 | Shared content tokens across consecutive windows |
 | `max_windows` | 128 | Maximum combined windows across all prepared views |
-| `batch_size` | 8 | Number of model windows per PyTorch batch |
+| `batch_size` | 8 | Number of model windows per ONNX batch |
 | `timeout` | 45 seconds | Maximum response deadline for inference/worker startup |
 | `memory_mb` | 12,288 | Worker virtual address-space limit, as configured |
 
@@ -1162,12 +1162,12 @@ Loading PyTorch and Transformers may take memory and time. The project starts a 
 The spawned child:
 
 1. Sets `OMP_NUM_THREADS=4` and a resource limit for virtual memory (where supported).
-2. Imports PyTorch, tokenizer/model loaders.
-3. Re-verifies the local model directory against the pinned manifest.
-4. Sets torch CPU thread/interop counts.
-5. Loads `AutoTokenizer.from_pretrained` with `local_files_only=True`, `trust_remote_code=False` and fast tokenizer mode.
-6. Loads `AutoModelForSequenceClassification.from_pretrained` with `use_safetensors=True`, `local_files_only=True` and `trust_remote_code=False`.
-7. Moves the model to CPU, calls `eval()`, signals loaded.
+2. Imports ONNX Runtime, NumPy and Tokenizers.
+3. Re-verifies the derived ONNX model directory against the pinned manifest.
+4. Sets ONNX Runtime CPU thread/interop counts.
+5. Loads the pinned `tokenizer.json` using the `tokenizers` library.
+6. Loads the pinned `model.onnx` using the CPU execution provider.
+7. Signals that the CPU session is loaded.
 8. Waits for bounded requests on its pipe until shutdown.
 
 If loading fails, the parent does not substitute a pretrained base head or a keyword detector. It receives/records a model error/incomplete scan.
@@ -1179,8 +1179,8 @@ Each request includes the source category in a prefix:
 ```python
 prefix_ids = tokenizer.encode(
     f"Source: {source}\nContent:\n", add_special_tokens=False
-)
-width = token_limit - tokenizer.num_special_tokens_to_add(pair=False) - len(prefix_ids)
+).ids
+width = token_limit - 2 - len(prefix_ids)
 ```
 
 The model input cannot use all 128 tokens for actual document content: the prefix and model's special tokens take space. The worker enforces a minimum usable width to avoid invalid/degenerate windows.
@@ -1210,8 +1210,9 @@ This design is fundamental: a defender must not interpret "the first few paragra
 For each window, the worker adds prefix IDs, prepares model special tokens, pads a batch and calls:
 
 ```python
-with torch.inference_mode():
-    probabilities = torch.softmax(model(**batch).logits, dim=-1)[:, 1]
+logits = session.run(["logits"], {"input_ids": ids, "attention_mask": mask})[0]
+shifted = logits - np.max(logits, axis=1, keepdims=True)
+probabilities = np.exp(shifted)[:, 1] / np.exp(shifted).sum(axis=1)
 ```
 
 This produces the score for class `INJECTION` (index 1). The worker returns scores for every window and the **maximum** score as the aggregate model evidence. The count of returned scores must exactly match the constructed window specs; otherwise the result is invalid.
@@ -1267,7 +1268,7 @@ The weight file `model.safetensors`, `config.json` and tokenizer files remain se
 
 ### 23.3 Default directories
 
-Linux: `~/.local/share/kjnlae/models/reviewed-v0.2` or `XDG_DATA_HOME` equivalent. Windows: `%LOCALAPPDATA%\\kjnlae\\models\\reviewed-v0.2`. macOS: `~/Library/Application Support/kjnlae/models/reviewed-v0.2`.
+Linux: `~/.local/share/kjnlae/models/reviewed-v0.2-onnx` or `XDG_DATA_HOME` equivalent. Windows: `%LOCALAPPDATA%\\kjnlae\\models\\reviewed-v0.2-onnx`. macOS: `~/Library/Application Support/kjnlae/models/reviewed-v0.2-onnx`.
 
 These locations deliberately do not depend on a particular project checkout or private Fedora/home workspace. Inference is local and does not require Hub access after download.
 
@@ -1634,15 +1635,15 @@ The page keeps the API credential in component state, not localStorage. This is 
 
 ### 29.1 Packaging
 
-`pyproject.toml` identifies package `kjnlae` version `0.3.1` with Python `>=3.12,<3.14`, Hatchling, a minimal FastAPI/Pydantic/Uvicorn runtime and PyTorch, Transformers, safetensors and the Hugging Face Hub client as default dependencies (no `ml` extra). End users may install CPU-specific PyTorch wheels first following the README. The library imports without a dashboard or a hosted model.
+`pyproject.toml` identifies package `kjnlae` version `0.3.2` with Python `>=3.11,<3.15`, Hatchling, Pydantic, ONNX Runtime CPU, ONNX, NumPy, Tokenizers, Safetensors and Hugging Face Hub as default dependencies. FastAPI/Uvicorn are in `[api]`; PyTorch/Transformers are in `[train]`. The library imports without a dashboard or a hosted model.
 
 ### 29.2 GitHub Actions
 
-The CI matrix runs Python 3.12 and 3.13 on Linux, Windows and macOS no-weight portability jobs, a React test/build/audit job and a Docker container smoke. Missing-weight benchmark checks must explicitly return `INCOMPLETE`. The previously reviewed refactor passed these six hosted jobs; a **new integration commit must pass its own CI again**.
+The CI matrix runs Python 3.11–3.14 on Linux, Windows and macOS no-weight portability jobs, a React test/build/audit job and a Docker container smoke. Missing-weight benchmark checks must explicitly return `INCOMPLETE`. Prior hosted runs verified the old PyTorch runtime; the ONNX branch needs its own CI run.
 
 ### 29.3 Local actual-weight gate
 
-Use `bash scripts/verify_all.sh` for code-level tests and `KJNLAE_VERIFY_RELEASE=1` with a verified local model for actual-weight checks. Linux release-gate evidence includes real Hub download/verify/inference, Ruff, strict mypy, 94 Python tests, six frontend tests, a browser smoke and Docker reference smoke **before this integration's additional regression tests**. Changes to model worker and HTTP content handling should be tested with the exact reviewed hash again when possible.
+Use `bash scripts/verify_all.sh` for code-level tests and `KJNLAE_VERIFY_RELEASE=1` with `KJNLAE_TEST_ONNX_DIR` and `KJNLAE_TEST_ONNX_HASH` for actual-weight checks. `KJNLAE_TEST_MODEL_DIR` can point to the original checkpoint for optional PyTorch comparison. Earlier browser/Docker records belong to the prior runtime; see [runtime provenance](docs/onnx-runtime.md) for current ONNX evidence.
 
 ### 29.4 Docker
 
@@ -1802,7 +1803,7 @@ flowchart TD
 ```mermaid
 flowchart LR
   Changes["PR commit"] --> CI["GitHub Actions"]
-  CI --> Linux["Python 3.12/3.13"]
+  CI --> Linux["Python 3.11–3.14"]
   CI --> Platforms["Windows + macOS no-weight"]
   CI --> UI["Frontend test/build"]
   CI --> Docker["Container degraded smoke"]

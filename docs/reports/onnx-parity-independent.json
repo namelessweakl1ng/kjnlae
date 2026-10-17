@@ -1,0 +1,31 @@
+{
+  "dataset_sha256": "a70629b432dda5ad0a6a91ba87a35bffd594752af7d7ab1d39f2f29ee34438bc",
+  "samples": 50,
+  "windows": 50,
+  "threshold": 0.025134501978754997,
+  "max_abs_window_score_difference": 2.7567148208618164e-07,
+  "max_abs_aggregate_score_difference": 2.7567148208618164e-07,
+  "decision_flips": 0,
+  "torch_metrics": {
+    "tp": 15,
+    "tn": 25,
+    "fp": 10,
+    "fn": 0,
+    "precision": 0.6,
+    "recall": 1.0,
+    "f1": 0.7499999999999999,
+    "false_positive_rate": 0.2857142857142857,
+    "false_negative_rate": 0.0
+  },
+  "onnx_metrics": {
+    "tp": 15,
+    "tn": 25,
+    "fp": 10,
+    "fn": 0,
+    "precision": 0.6,
+    "recall": 1.0,
+    "f1": 0.7499999999999999,
+    "false_positive_rate": 0.2857142857142857,
+    "false_negative_rate": 0.0
+  }
+}

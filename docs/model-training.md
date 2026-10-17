@@ -76,15 +76,10 @@ If `fit-report.json` says `INCOMPLETE`, its output is not promoted. A slower CPU
 6. Compute the new manifest hash and verify the newly produced model. The hash below belongs only to the executed cloud run; a new run can differ. Back up the entire `best` directory, not just the weights.
 
 ```bash
-export KJNLAE_MODEL_DIR="$PWD/var/models/full-v0.2-public/best"
-export KJNLAE_MODEL_HASH="$(sha256sum "$KJNLAE_MODEL_DIR/manifest.json" | cut -d' ' -f1)"
-kjnlae model verify --directory "$KJNLAE_MODEL_DIR" --hash "$KJNLAE_MODEL_HASH"
-kjnlae doctor
-KJNLAE_VERIFY_RELEASE=1 KJNLAE_TEST_MODEL_DIR="$KJNLAE_MODEL_DIR" \
-  KJNLAE_TEST_MODEL_HASH="$KJNLAE_MODEL_HASH" bash scripts/verify_all.sh
+python -c 'from pathlib import Path; from kjnlae.classifiers.artifacts import verify_artifact; print(verify_artifact(Path("var/models/full-v0.2-public/best"), None))'
 ```
 
-The local adapter validates hashes, labels, training steps and safetensors; disables remote code; runs on CPU in a timed worker; and reports incomplete if any supported view/window cannot be inspected. It does not accept arbitrary remote model IDs. A future GPU DeBERTa experiment requires a new reviewed training/evaluation and artifact contract; it is not a v0.2 runtime fallback.
+That checks the **training artifact**, not the application's ONNX runtime artifact. Application 0.3.2's `kjnlae model verify` and `doctor` accept only the separately reviewed ONNX derivative of the published checkpoint. A newly trained model requires its own graph hash, manifest and parity evaluation before promotion; do not point `Guard` at an unreviewed safetensors directory. A future GPU DeBERTa experiment requires a new reviewed training/evaluation and artifact contract; it is not a runtime fallback.
 
 ## Reproduce the experimental false-positive follow-up
 
@@ -111,14 +106,11 @@ Check for `status: COMPLETE` in `fit-report.json` before evaluation. The 924/12/
 To use **this** local candidate, install or copy the entire `best` directory and pin its manifest. A reproduction can have a different hash; compute and verify the hash of the artifact you actually produced.
 
 ```bash
-export KJNLAE_MODEL_DIR="$PWD/var/models/full-v0.2-v3-reviewed"
-export KJNLAE_MODEL_HASH="$(sha256sum "$KJNLAE_MODEL_DIR/manifest.json" | cut -d' ' -f1)"
-kjnlae model verify --directory "$KJNLAE_MODEL_DIR" --hash "$KJNLAE_MODEL_HASH"
+export KJNLAE_TEST_MODEL_DIR="$PWD/var/models/full-v0.2-v3-reviewed"
+python -c 'from pathlib import Path; from kjnlae.classifiers.artifacts import verify_artifact; print(verify_artifact(Path("var/models/full-v0.2-v3-reviewed"), "54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b"))'
+kjnlae model download
+kjnlae model verify
 kjnlae doctor
-python -m kjnlae.maintainer_cli benchmark --dataset datasets/fixtures/v0.2-independent-eval.json \
-  --output reports/independent-v0.2-v3
-KJNLAE_VERIFY_RELEASE=1 KJNLAE_TEST_MODEL_DIR="$KJNLAE_MODEL_DIR" \
-  KJNLAE_TEST_MODEL_HASH="$KJNLAE_MODEL_HASH" bash scripts/verify_all.sh
 ```
 
 The executed cloud candidate's manifest hash is `54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b`. Its local weights are ignored by Git. Preserve any new artifact and its `fit-report.json`, `evaluation-report.json`, prepared manifest and generated augmentation file separately. The published reviewed artifact has its own pinned manifest; do not overwrite it during reproduction.

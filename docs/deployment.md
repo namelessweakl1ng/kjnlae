@@ -4,19 +4,19 @@ Install the public artifact explicitly with `kjnlae model download`, then run `k
 
 Set `KJNLAE_ENV=production` for deployment. In that mode, startup requires an API key of at least 32 characters and an explicit artifact path/hash. The default host list allows only local names and the default CORS origin list is empty; configure both for the intended deployment before exposing it behind a trusted TLS reverse proxy and identity layer. A static API key authenticates the deployment, not end users. For one service principal, a bounded, mode-0600 `KJNLAE_AUTHORITY_V2_FILE` can supply server-owned grants; a multi-user host should inject verified per-user authority. Never let prompt or model text modify that file. Human approval issuance belongs to a trusted host UI/backend and is not an HTTP route.
 
-A Python wheel contains the SDK and API but no compiled React assets. `kjnlae serve` reports **API only** when those assets are absent. The documented source quickstart builds `frontend/dist` before serving; the Docker image includes the built UI.
+A base Python wheel contains the SDK and CPU inference libraries, but neither FastAPI nor compiled React assets. Install `kjnlae[api]` to serve; `kjnlae serve` reports **API only** when dashboard assets are absent. The documented source quickstart builds `frontend/dist` before serving; the Docker image includes the built UI.
 
 For local Compose, download to a dedicated project-local directory and set a private `.env`:
 
 ```bash
-kjnlae model download --directory ./var/models/reviewed-v0.2
+kjnlae model download --directory ./var/models/reviewed-v0.2-onnx
 ```
 
 ```text
-KJNLAE_MODEL_DIR_HOST=./var/models/reviewed-v0.2
-KJNLAE_MODEL_HASH=54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b
+KJNLAE_MODEL_DIR_HOST=./var/models/reviewed-v0.2-onnx
+KJNLAE_MODEL_HASH=6b69bd6a790119d4c53fe2df02447114eebcdadddec18d788bf1cf6825ecfa1c
 ```
 
-Then run `docker compose up --build -d` and check `curl http://127.0.0.1:8000/health/ready`. Compose mounts that artifact read-only, binds host port to loopback, runs as non-root UID 10001 with a read-only root filesystem, and drops capabilities. The image has CPU inference dependencies but no model weights. The installed model directory is private by default; grant UID 10001 read/traverse access to **that dedicated public-artifact copy** (for example with an ACL) before expecting container readiness. Do not change permissions on private training data or backups. No SQLite audit volume is needed; structured logs omit prompts.
+Then run `docker compose up --build -d` and check `curl http://127.0.0.1:8000/health/ready`. Compose mounts that artifact read-only, binds host port to loopback, runs as non-root UID 10001 with a read-only root filesystem, and drops capabilities. The image installs ONNX Runtime CPU and no PyTorch/CUDA stack or model weights. The installed model directory is private by default; grant UID 10001 read/traverse access to **that dedicated public-artifact copy** (for example with an ACL) before expecting container readiness. Do not change permissions on private training data or backups. No SQLite audit volume is needed; structured logs omit prompts.
 
 HTTP JSON bodies are capped at 512 KiB; scan text is separately limited to 32,768 Unicode codepoints. Derived views, windows, inference time, and peer rate are bounded. Protect reverse-proxy logs from prompt bodies and secrets. This project does not provide TLS termination, per-user sessions, or durable distributed approval storage; approvals are process-local, one-use, and lost on restart. Multiple sensitive-action workers require a reviewed shared approval transaction before deployment.

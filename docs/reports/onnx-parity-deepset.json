@@ -1,0 +1,31 @@
+{
+  "dataset_sha256": "39ac797cabc157eeed58435a08593b2952bb6cb16fc394a2d383f447cc7b246e",
+  "samples": 116,
+  "windows": 121,
+  "threshold": 0.025134501978754997,
+  "max_abs_window_score_difference": 1.2814998626708984e-06,
+  "max_abs_aggregate_score_difference": 1.2814998626708984e-06,
+  "decision_flips": 0,
+  "torch_metrics": {
+    "tp": 58,
+    "tn": 47,
+    "fp": 9,
+    "fn": 2,
+    "precision": 0.8656716417910447,
+    "recall": 0.9666666666666667,
+    "f1": 0.9133858267716535,
+    "false_positive_rate": 0.16071428571428573,
+    "false_negative_rate": 0.03333333333333333
+  },
+  "onnx_metrics": {
+    "tp": 58,
+    "tn": 47,
+    "fp": 9,
+    "fn": 2,
+    "precision": 0.8656716417910447,
+    "recall": 0.9666666666666667,
+    "f1": 0.9133858267716535,
+    "false_positive_rate": 0.16071428571428573,
+    "false_negative_rate": 0.03333333333333333
+  }
+}

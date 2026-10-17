@@ -3,7 +3,7 @@
 ```mermaid
 flowchart LR
   Text[Untrusted text] --> Prep[Bounded source-mapped views]
-  Prep --> Model[Verified local DistilBERT worker]
+  Prep --> Model[Verified local DistilBERT ONNX CPU worker]
   Model --> Policy[Input decision or INCOMPLETE]
   Host[Authenticated host identity and intent] --> Grants[Resource grants and catalog]
   Proposal[Proposed tool call] --> Gateway[ActionGateway]
@@ -13,7 +13,7 @@ flowchart LR
   Host --> Release
 ```
 
-`Guard` is the reusable scanner and has no authority to execute tools. It creates bounded original/derived views, passes them to a spawned CPU worker, and applies `InputPolicy` to complete model evidence. It returns the actual maximum model score, threshold, all scored windows, mapped source spans, and an explicit incomplete status on failure. No lexical prompt-injection classifier runs. The local artifact is verified before inference, and the worker cannot run model-supplied code or use network weights.
+`Guard` is the reusable scanner and has no authority to execute tools. It creates bounded original/derived views, passes them to a spawned ONNX Runtime CPU worker, and applies `InputPolicy` to complete model evidence. It returns the actual maximum model score, threshold, all scored windows, mapped source spans, and an explicit incomplete status on failure. No lexical prompt-injection classifier runs. The separately identified ONNX artifact is verified before inference, and the worker cannot run model-supplied code or use network weights. The original PyTorch checkpoint is used only for training, conversion research and comparison; see [runtime provenance](onnx-runtime.md).
 
 `ActionGateway` and `GuardedExecutor` are independent of injection classification. Only trusted application code may create a principal, tenant, exact grants, allowed tools/destinations, and human approvals. A prompt or proposed action can request an operation but cannot create permission. The executor rechecks resource version, owner, and tenant before invoking a host callback. External stores require their own transactional equivalent.
 
