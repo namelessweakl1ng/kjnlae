@@ -35,9 +35,11 @@ def load_rows(path: Path) -> list[dict[str, Any]]:
             for index, row in enumerate(source_rows)
         ]
     if path.suffix == ".jsonl":
-        source_rows = [json.loads(line) for line in path.read_text().splitlines() if line]
+        source_rows = [
+            json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line
+        ]
     elif path.suffix == ".json":
-        source_rows = json.loads(path.read_text())
+        source_rows = json.loads(path.read_text(encoding="utf-8"))
     else:
         raise ValueError("Expected JSON, JSONL or pinned Deepset parquet")
     if not isinstance(source_rows, list) or not source_rows:
@@ -156,7 +158,7 @@ def main() -> None:
     report = compare(args.torch, args.onnx, args.hash, rows)
     report["dataset_sha256"] = hashlib.sha256(args.dataset.read_bytes()).hexdigest()
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2) + "\n")
+    args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2))
 
 
