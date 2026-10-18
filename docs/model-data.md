@@ -19,3 +19,29 @@ The new 50-case original independent evaluation set was committed at `1a307c5` b
 The follow-up TRAIN partition contains the prior 660 rows plus 64 newly authored fictional benign TRAIN examples from `datasets/fixtures/v0.2-benign-train.jsonl` and 200 deterministic source variants of existing Deepset public **TRAIN benign** examples. The authored file is MIT licensed, SHA-256 `2f846ed89ab8b9d9111e27c927289c6e91734de9880c6487dc1cfe908b2e91c1`. The variants retain the public text, label, family and Deepset attribution; only their source metadata changes. `python -m kjnlae.training.augment` with seed 43 produces local SHA-256 `277998b7e770a29c5e49e805e0a8cb103717b73e50cbef0a4a9d23c36ed57346`. Public-source license obligations therefore still apply; the generated variants are not redistributed in Git. This source balancing is an experimental distribution intervention, not new independent content.
 
 The new prepared counts are **924 TRAIN / 12 VALIDATION / 12 CALIBRATION / 116 HELD_OUT_TEST**. TRAIN SHA-256 is `a20fe7bd4e2a1d7fbd5da81d68a81ce37b52e724ff7a272aa7c4b7145bb911af`; the other three split SHA-256 values remain `dba1dd1a859aebcf4ab4caa36ff3ee29efb4a266d77cbbfaec95eb9f6aa544c2`, `54563c39a4a8189ef6e88eb9697001a759504dd5ad343ab28d8d01a9dec3243b`, and `99663b36168ce67f5fa59ee9bb7ac4f6af39309df543cb98e989cfb5ad4c9552`. Exact normalized overlap between the new independent set and old TRAIN/regression cases was zero before training. This check cannot establish semantic independence or exclude overlap with encoder pretraining.
+
+## Unpublished v0.3 follow-up
+
+The v0.3 experiment froze a new 120-case fictional English final fixture in
+commit `c35e7c2` **before** data preparation or training. It has 80 benign and
+40 active-injection cases across eight benign and five attack categories;
+its SHA-256 is `b2bb9762a8fbe574071fd6836e484f4e185f208c1b1799491aa0a628c9efd699`.
+The fixture is MIT-licensed with this repository. It was excluded from all
+training, validation, calibration and threshold selection. It has now been
+opened for the one recorded candidate comparison and must not be reused as a
+fresh test for a future model. Prior 30- and 50-case fixtures and Deepset
+TEST were likewise excluded from v0.3 fitting and calibration.
+
+The prepared local split contains 884 TRAIN rows (539 benign, 345 attacks),
+40 VALIDATION rows and 80 CALIBRATION rows. It combines the original v0.2
+TRAIN partition, pinned BIPIA and Deepset **TRAIN** material, 64 authored
+hard benign rows from the earlier experiment, and 280 newly authored fictional
+rows across the three new partitions. No public source rows or model weights
+are committed here. Source variants within VALIDATION and CALIBRATION share
+semantic families, leaving only 20 and 40 independent authored families
+respectively. The original and public source license and attribution terms
+above still apply. Exact counts, hashes, partition construction, leakage
+checks, labeling caveats and CPU training commands are in the
+[v0.3 data/probe record](reports/v0.3-data-and-probe.md),
+[training guide](model-training-v0.3.md), and
+[evaluation](reports/v0.3-evaluation.md).

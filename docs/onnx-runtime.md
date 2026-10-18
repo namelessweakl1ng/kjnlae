@@ -1,5 +1,13 @@
 # CPU inference runtime and artifact provenance
 
+> This page describes the **currently public v0.2 model** and its default
+> installer. A separately fine-tuned, unpublished v0.3 candidate has a new
+> [source and ONNX identity, parity report, and measured runtime](reports/v0.3-evaluation.md).
+> Its verified ONNX manifest SHA-256 is
+> `537899c45553fc6583587684c5685d57c159c1b9f387590b182e1ce0f9a9ea4c`;
+> the local development branch accepts it through an explicit pinned model
+> path/hash. The public installer does not download or select that candidate.
+
 kjnlae 0.3.2 replaces the application's PyTorch/Transformers inference path with ONNX Runtime CPU and the verified tokenizer JSON. PyTorch and Transformers remain optional for fine-tuning, historical comparison and maintainer research. The detector is still **the same fine-tuned English DistilBERT checkpoint**, not a new or fallback classifier. Authorization and output-release checks are independent of either inference runtime.
 
 ## Reproducible derivation

@@ -1,5 +1,13 @@
 # Verification record
 
+> The [v0.3 candidate evaluation](reports/v0.3-evaluation.md) records a
+> later **local** release gate: 129 Python tests passed, 2 model tests skipped,
+> Ruff and mypy passed, 7 frontend tests passed, the frontend and wheel built,
+> and real candidate model `doctor`/benchmark checks passed. Hosted CI for the
+> v0.3 branch, fresh Fedora installation of that branch, and real candidate
+> Windows/macOS inference have not been verified. The historical checks below
+> concern earlier application/model versions unless stated otherwise.
+
 ## Current 0.3.2 CPU/ONNX runtime, 2026-10-18
 
 The historical checks below were performed against earlier PyTorch-based revisions. The 0.3.2 runtime, now on `main`, was checked separately in the Linux x86-64 cloud workspace. The locally built 0.3.2 wheel installed and ran real ONNX inference on Python 3.11, 3.12, 3.13 and 3.14; Windows/macOS/ARM have no real-weight result. The original checkpoint and its public manifest were left untouched.

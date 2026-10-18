@@ -1,5 +1,10 @@
 # Reproduce the English CPU model
 
+For the separately evaluated, unpublished v0.3 continuation candidate, use
+the [v0.3 training and Fedora guide](model-training-v0.3.md). The instructions
+below reproduce the historical public v0.2 artifact; its weights and results
+remain unchanged.
+
 These instructions produce a new **local** artifact. The reviewed inference artifact is available through `kjnlae model download`; these instructions reproduce new weights locally. Use Python 3.12 or 3.13, four CPU cores, ample free disk and preferably 16–32 GiB RAM. The first cloud run used 660 TRAIN rows; the experimental follow-up used 924. Install CPU PyTorch and dependencies exactly as in the [README](../README.md). Do not train on held-out or regression cases or tune against them.
 
 1. Acquire the pinned Apache-2.0 base model explicitly:
