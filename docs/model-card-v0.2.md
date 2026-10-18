@@ -61,18 +61,17 @@ The separately controlled gateway completed 2/2 authorized tasks and blocked 4/4
 
 ## Install and run locally
 
-Clone and install [kjnlae](https://github.com/namelessweakl1ng/kjnlae) with the CPU-only dependencies described in its README, and install `huggingface_hub>=0.30,<1`. Then, from the project root:
+Clone the [kjnlae 0.3.2 source](https://github.com/namelessweakl1ng/kjnlae) and install it as described in its README. PyPI 0.3.0 is still the older runtime until a separate release. Then, from the project root:
 
 ```bash
-kjnlae model download --repo namelessweakling/kjnlae-distilbert-v0.2
-export KJNLAE_MODEL_DIR="$PWD/var/models/full-v0.2-v3-reviewed"
-export KJNLAE_MODEL_HASH="54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b"
-kjnlae model verify "$KJNLAE_MODEL_DIR" --hash "$KJNLAE_MODEL_HASH"
+python -m pip install '.[api]'
+kjnlae model download
+kjnlae model verify
 kjnlae doctor
 kjnlae serve
 ```
 
-The downloader installs the files only after comparing the manifest and each file with the pinned hashes. The normal scanning path makes **no network requests**. The destination must not exist before download.
+The downloader verifies this original checkpoint's pinned manifest and files, derives a separately hashed ONNX CPU artifact, and installs it only after verification. The normal scanning path makes **no network requests**. The destination must not exist before download. The original safetensors checkpoint remains on Hugging Face for training and research; see [ONNX provenance](onnx-runtime.md).
 
 ## License and attribution
 

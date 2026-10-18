@@ -1,8 +1,8 @@
 # Contributing
 
-Use Python 3.12 or 3.13 and Node 24. Follow README installation commands with the locked dependency files. Keep core inspection/policy independent of HTTP, use original fixtures, and preserve evidence offsets and trust metadata.
+Use Python 3.11–3.14 and Node 24. Install the source checkout with `python -m pip install '.[api,dev]'`; add `[train]` only for maintainer training or original-PyTorch comparisons. `pyproject.toml` is the dependency source; the obsolete lockfiles were removed. Keep core inspection/policy independent of HTTP, use original fixtures, and preserve evidence offsets and trust metadata.
 
-Before submitting changes run `pytest`, `ruff check .`, `ruff format --check .`, `mypy src`, `pip-audit -r requirements.lock`, and frontend `npm test`, `npm run build`, `npm audit`. Container changes also need `docker compose up --build -d --wait` and the functional smoke script. Optional real-model tests need lawful reviewed cached weights; do not describe mocks as real-model validation.
+Before submitting changes run `bash scripts/verify_all.sh`, `python scripts/audit_cpu_dependencies.py`, `python -m pip_audit --progress-spinner off`, and `npm --prefix frontend audit --audit-level=low`. Container changes also need `docker compose up --build -d --wait` and the functional smoke script. The release gate needs verified local ONNX weights and `KJNLAE_VERIFY_RELEASE=1`, `KJNLAE_TEST_ONNX_DIR`, and `KJNLAE_TEST_ONNX_HASH`; do not describe mocks or no-weight CI as real-model validation.
 
 Add regression tests for important behavior and security fixes, especially denial precedence, parameter mutation, approval replay and untrusted identity assertions. Never weaken policy assertions to green a test. Document changed metrics and datasets honestly; do not optimize reported numbers by removing difficult cases or contaminating held-out sets.
 
