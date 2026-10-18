@@ -63,9 +63,12 @@ def main() -> None:
         cal_path = args.prepared / "calibration.jsonl"
         val_path = args.prepared / "validation.jsonl"
         calibration, validation = _rows(cal_path), _rows(val_path)
-        if not calibration or not validation or any(
-            row["split"] != "CALIBRATION" for row in calibration
-        ) or any(row["split"] != "VALIDATION" for row in validation):
+        if (
+            not calibration
+            or not validation
+            or any(row["split"] != "CALIBRATION" for row in calibration)
+            or any(row["split"] != "VALIDATION" for row in validation)
+        ):
             raise ValueError("Malformed development partitions")
         candidate_scores, _ = _score_rows(candidate, calibration)
         truth = [row["label"] for row in calibration]
@@ -93,6 +96,17 @@ def main() -> None:
             "control_calibration": _score(args.control, calibration, control.threshold),
             "control_validation": _score(args.control, validation, control.threshold),
         }
+        control_scores = [item["score"] for item in report["control_calibration"]["scores"]]
+        try:
+            control_point = select_operating_point(
+                truth, control_scores, max_fpr=0.1, min_recall=0.9
+            )
+            report["control_recalibrated_threshold"] = control_point.threshold
+            report["control_recalibrated_calibration"] = summarize_scored_cases(
+                calibration, control_scores, threshold=control_point.threshold
+            )
+        except ValueError:
+            report["control_recalibrated_threshold"] = None
         if threshold is not None:
             report["candidate_calibration"] = summarize_scored_cases(
                 calibration, candidate_scores, threshold=threshold
@@ -126,8 +140,15 @@ def main() -> None:
         "control": _score(args.control, final, control.threshold),
         "candidate": _score(candidate, final, float(selection["threshold"])),
     }
+    control_recalibrated = selection.get("control_recalibrated_threshold")
+    if control_recalibrated is not None:
+        result["control_recalibrated"] = _score(args.control, final, float(control_recalibrated))
     final_report.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-    metrics = {key: result[key]["metrics"] for key in ("control", "candidate")}
+    metrics = {
+        key: result[key]["metrics"]
+        for key in ("control", "control_recalibrated", "candidate")
+        if key in result
+    }
     print(json.dumps(metrics, indent=2))
 
 

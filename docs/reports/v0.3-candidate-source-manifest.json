@@ -1,0 +1,25 @@
+{
+  "artifact_version": "kjnlae-v0.3-candidate-local-1",
+  "base_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+  "best_epoch": 2,
+  "calibration_sha256": "4b10f6ea677557f46785faa20fe23ed0d77e58f94b969a5e44d208e66ecdd454",
+  "evaluated": true,
+  "files": {
+    "config.json": "544c43eef07d942c4b0f0054858ee92abc03afaffdd492baa38b6d17562b44f3",
+    "model.safetensors": "6c0896d72a1ef5bc5f49bd815412f8f66750055696ab716c6956ef872712c321",
+    "special_tokens_map.json": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a",
+    "tokenizer.json": "79ea220416a57ca8acdf069d71875d5d2ddadef66021aeb6c120a7c546c04344",
+    "tokenizer_config.json": "4e3ebbb83d8f65eee26679be22829ff1e28a02eacf4df31d5f49cc7f6c020807",
+    "vocab.txt": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+  },
+  "final_evaluation_sha256": "4b9630d10c13664362be52f924afda6375dc1b5dfeb591126de71ef54cba14ce",
+  "parent_model_manifest_sha256": "54e6df56616f4533e1c6a9624f3372ad14bc4d85f5ae97b45c1b3b515a83de9b",
+  "parent_weight_sha256": "0367a9d7b42f288a25d0d9f3c86d4b10b55b919652d504db535da28313b8f89a",
+  "quality_status": "EXPERIMENTAL",
+  "selection_sha256": "55515f805fcf4dcfe13a70e7bc24ee2804329524354e7cfd5a8045f8ce3a1a32",
+  "threshold": 0.5,
+  "total_optimizer_steps": 884,
+  "train_sha256": "65eacad9bcd94ab7b764279ed632e1b9d6fd3e666769b5c01be4b4099753e430",
+  "trained_steps": 884,
+  "validation_sha256": "d139045b859040d42a891a0d74a058c3bd3ec80ba68ded9c8616caf60c6b7ce6"
+}

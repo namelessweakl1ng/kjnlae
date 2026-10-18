@@ -21,6 +21,29 @@ ONNX_TEMPLATE_SHA256 = "78e39b995911d8b3fbf66e0e76ee97e6271e17384b7e80ee994946c7
 ONNX_MODEL_SHA256 = "d95dd1850d338f3687f13902869b18e8b6e37f6b23a2dc5845f76133d9dd03a1"
 ONNX_MANIFEST_SHA256 = "6b69bd6a790119d4c53fe2df02447114eebcdadddec18d788bf1cf6825ecfa1c"
 REVIEWED_THRESHOLD = 0.025134501978754997
+V03_CANDIDATE_SOURCE_MANIFEST_SHA256 = (
+    "071f6166177efd4af978e46d2f44fae13fe1a4be8c2030c916c3b924ecfe4d61"
+)
+V03_CANDIDATE_ONNX_MANIFEST_SHA256 = (
+    "537899c45553fc6583587684c5685d57c159c1b9f387590b182e1ce0f9a9ea4c"
+)
+V03_CANDIDATE_ONNX_MODEL_SHA256 = "aee933ab961a49d6c57ce0260220034b3e6e23177fc00602aa4e83578eb2106f"
+_ONNX_IDENTITIES: dict[str, dict[str, str | int | float]] = {
+    "kjnlae-v0.3.2-onnx-1": {
+        "manifest": ONNX_MANIFEST_SHA256,
+        "source_manifest": PUBLIC_MODEL_MANIFEST_SHA256,
+        "model": ONNX_MODEL_SHA256,
+        "steps": 462,
+        "threshold": REVIEWED_THRESHOLD,
+    },
+    "kjnlae-v0.3-candidate-onnx-1": {
+        "manifest": V03_CANDIDATE_ONNX_MANIFEST_SHA256,
+        "source_manifest": V03_CANDIDATE_SOURCE_MANIFEST_SHA256,
+        "model": V03_CANDIDATE_ONNX_MODEL_SHA256,
+        "steps": 884,
+        "threshold": 0.5,
+    },
+}
 PUBLIC_MODEL_FILES = [
     "manifest.json",
     "config.json",
@@ -203,7 +226,7 @@ def _assemble_onnx(source: Path, destination: Path) -> None:
 
 
 def verify_onnx_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
-    """Require a separately identified ONNX derivative of the reviewed checkpoint."""
+    """Require a separately pinned ONNX derivative of an evaluated checkpoint."""
     if path.is_symlink() or not path.is_dir():
         raise ValueError("ONNX model directory missing or linked")
     manifest_path = path / "manifest.json"
@@ -213,13 +236,19 @@ def verify_onnx_artifact(path: Path, expected_hash: str | None) -> ArtifactManif
     if expected_hash is not None and actual_hash != expected_hash:
         raise ValueError("ONNX manifest hash does not match deployment pin")
     raw: Any = json.loads(manifest_path.read_text())
-    if not isinstance(raw, dict) or raw.get("artifact_version") != "kjnlae-v0.3.2-onnx-1":
+    if not isinstance(raw, dict):
+        raise ValueError("Unexpected ONNX manifest")
+    artifact_version = raw.get("artifact_version")
+    if not isinstance(artifact_version, str):
+        raise ValueError("Unexpected ONNX manifest")
+    identity = _ONNX_IDENTITIES.get(artifact_version)
+    if identity is None:
         raise ValueError("Unexpected ONNX manifest")
     if (
-        raw.get("source_manifest_sha256") != PUBLIC_MODEL_MANIFEST_SHA256
+        raw.get("source_manifest_sha256") != identity["source_manifest"]
         or raw.get("graph_template_sha256") != ONNX_TEMPLATE_SHA256
         or raw.get("base_revision") != BASE_REVISION
-        or raw.get("trained_steps") != 462
+        or raw.get("trained_steps") != identity["steps"]
         or raw.get("quality_status") != "EXPERIMENTAL"
     ):
         raise ValueError("ONNX provenance mismatch")
@@ -230,8 +259,10 @@ def verify_onnx_artifact(path: Path, expected_hash: str | None) -> ArtifactManif
         or not 0 < threshold <= 1
     ):
         raise ValueError("Invalid ONNX threshold")
-    if float(threshold) != REVIEWED_THRESHOLD:
+    if float(threshold) != identity["threshold"]:
         raise ValueError("ONNX threshold differs from reviewed model")
+    if actual_hash != identity["manifest"]:
+        raise ValueError("Unreviewed ONNX manifest hash")
     files = raw.get("files")
     required = {"model.onnx", "tokenizer.json", "config.json"}
     if not isinstance(files, dict) or not required.issubset(files):
@@ -242,7 +273,7 @@ def verify_onnx_artifact(path: Path, expected_hash: str | None) -> ArtifactManif
         file_path = path / name
         if file_path.is_symlink() or not file_path.is_file() or _hash(file_path) != expected:
             raise ValueError("ONNX file hash mismatch")
-    if files["model.onnx"] != ONNX_MODEL_SHA256:
+    if files["model.onnx"] != identity["model"]:
         raise ValueError("Unreviewed ONNX graph")
     if any(p.suffix in {".bin", ".pt", ".pkl", ".pickle", ".safetensors"} for p in path.iterdir()):
         raise ValueError("Unexpected weights in ONNX artifact")
@@ -257,7 +288,7 @@ def verify_onnx_artifact(path: Path, expected_hash: str | None) -> ArtifactManif
         actual_hash,
         raw["artifact_version"],
         BASE_REVISION,
-        462,
+        int(identity["steps"]),
         float(threshold),
         "EXPERIMENTAL",
     )

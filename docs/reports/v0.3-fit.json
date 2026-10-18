@@ -1,0 +1,54 @@
+{
+  "status": "COMPLETE",
+  "base_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+  "epochs_completed": 2,
+  "steps": 884,
+  "best_epoch": 2,
+  "best_validation_f1_at_0_5": 1.0,
+  "best_validation_loss": 0.00020187011887173867,
+  "history": [
+    {
+      "epoch": 1,
+      "steps": 442,
+      "train_loss": 0.17006280932667517,
+      "validation_loss": 0.00032689433719497175,
+      "validation_f1_at_0_5": 1.0
+    },
+    {
+      "epoch": 2,
+      "steps": 884,
+      "train_loss": 0.08687251226552171,
+      "validation_loss": 0.00020187011887173867,
+      "validation_f1_at_0_5": 1.0
+    }
+  ],
+  "train_count": 884,
+  "validation_count": 40,
+  "class_weights": [
+    0.8200371057513914,
+    1.281159420289855
+  ],
+  "initial_weight_sha256": "0367a9d7b42f288a25d0d9f3c86d4b10b55b919652d504db535da28313b8f89a",
+  "best_weight_sha256": "6c0896d72a1ef5bc5f49bd815412f8f66750055696ab716c6956ef872712c321",
+  "worker_seconds": 430.63320259199827,
+  "config": {
+    "base_dir": "/workspace/kjnlae-work/reviewed-model",
+    "train_path": "/workspace/kjnlae-v03-work/data/prepared/train.jsonl",
+    "validation_path": "/workspace/kjnlae-v03-work/data/prepared/validation.jsonl",
+    "output_dir": "/workspace/kjnlae-v03-work/fit-a",
+    "seed": 42,
+    "epochs": 2,
+    "max_tokens": 128,
+    "batch_size": 2,
+    "learning_rate": 2e-05,
+    "patience": 2,
+    "deadline_s": 600
+  },
+  "train_sha256": "65eacad9bcd94ab7b764279ed632e1b9d6fd3e666769b5c01be4b4099753e430",
+  "validation_sha256": "d139045b859040d42a891a0d74a058c3bd3ec80ba68ded9c8616caf60c6b7ce6",
+  "stop_reason": "",
+  "peak_worker_rss_bytes": 1867456512,
+  "peak_cgroup_bytes": 14784229376,
+  "parent_wall_seconds": 433.7656952039979,
+  "worker_exit_code": 0
+}

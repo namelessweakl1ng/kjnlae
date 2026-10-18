@@ -47,7 +47,9 @@ def main() -> None:
         for line in (root / "datasets/fixtures/v0.3-frozen-final.jsonl").read_text().splitlines()
     ]
     reject_frozen_overlap(
-        authored + original_train + [
+        authored
+        + original_train
+        + [
             TrainingExample.model_validate_json(line)
             for line in (root / "datasets/fixtures/v0.2-benign-train.jsonl")
             .read_text()
@@ -90,9 +92,11 @@ def main() -> None:
         },
         "source_label": {
             split: {
-                source: dict(Counter(
-                    row.label for row in rows if row.split == split and row.source == source
-                ))
+                source: dict(
+                    Counter(
+                        row.label for row in rows if row.split == split and row.source == source
+                    )
+                )
                 for source in sorted({row.source for row in rows if row.split == split})
             }
             for split in ("TRAIN", "VALIDATION", "CALIBRATION")

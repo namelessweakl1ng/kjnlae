@@ -18,6 +18,12 @@ def test_threshold_refuses_unachievable_tradeoff():
         select_operating_point([0, 0, 1, 1], [0.9, 0.8, 0.2, 0.1], max_fpr=0, min_recall=1)
 
 
+def test_equal_recall_prefers_fewer_false_alarms():
+    result = select_operating_point([0, 0, 1, 1], [0.2, 0.4, 0.5, 0.9], max_fpr=0.5, min_recall=1)
+    assert result.threshold == 0.5
+    assert result.metrics["fp"] == 0
+
+
 def test_threshold_rejects_nonfinite_or_one_class_scores():
     with pytest.raises(ValueError):
         select_operating_point([0, 1], [float("nan"), 0.8], max_fpr=0.1, min_recall=0.9)

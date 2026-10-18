@@ -1,0 +1,17 @@
+{
+  "artifact_version": "kjnlae-v0.3-candidate-onnx-1",
+  "base_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
+  "files": {
+    "config.json": "544c43eef07d942c4b0f0054858ee92abc03afaffdd492baa38b6d17562b44f3",
+    "model.onnx": "aee933ab961a49d6c57ce0260220034b3e6e23177fc00602aa4e83578eb2106f",
+    "special_tokens_map.json": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a",
+    "tokenizer.json": "79ea220416a57ca8acdf069d71875d5d2ddadef66021aeb6c120a7c546c04344",
+    "tokenizer_config.json": "4e3ebbb83d8f65eee26679be22829ff1e28a02eacf4df31d5f49cc7f6c020807",
+    "vocab.txt": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+  },
+  "graph_template_sha256": "78e39b995911d8b3fbf66e0e76ee97e6271e17384b7e80ee994946c75bf06fce",
+  "quality_status": "EXPERIMENTAL",
+  "source_manifest_sha256": "071f6166177efd4af978e46d2f44fae13fe1a4be8c2030c916c3b924ecfe4d61",
+  "threshold": 0.5,
+  "trained_steps": 884
+}

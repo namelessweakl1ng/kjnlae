@@ -35,7 +35,9 @@ def summarize_scored_cases(
 ) -> dict[str, Any]:
     """Summarize complete labeled cases and show every classification mistake."""
     if (
-        not rows or len(rows) != len(scores) or not 0 < threshold <= 1
+        not rows
+        or len(rows) != len(scores)
+        or not 0 < threshold <= 1
         or any(row.get("label") not in (0, 1) for row in rows)
         or any(not math.isfinite(score) or not 0 <= score <= 1 for score in scores)
     ):

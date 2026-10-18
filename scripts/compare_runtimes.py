@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 from kjnlae.classifiers.artifacts import (
-    PUBLIC_MODEL_MANIFEST_SHA256,
     verify_artifact,
     verify_onnx_artifact,
 )
@@ -62,8 +61,9 @@ def compare(
     import torch
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
-    verify_artifact(torch_dir, PUBLIC_MODEL_MANIFEST_SHA256)
     artifact = verify_onnx_artifact(onnx_dir, onnx_hash)
+    derivative = json.loads((artifact.path / "manifest.json").read_text())
+    verify_artifact(torch_dir, derivative["source_manifest_sha256"])
     torch.set_num_threads(4)
     tokenizer = AutoTokenizer.from_pretrained(
         torch_dir, local_files_only=True, use_fast=True, trust_remote_code=False

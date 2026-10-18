@@ -56,3 +56,29 @@ def test_onnx_manifest_cannot_change_reviewed_threshold(tmp_path):
     digest = hashlib.sha256((destination / "manifest.json").read_bytes()).hexdigest()
     with pytest.raises(ValueError, match="threshold"):
         verify_onnx_artifact(destination, digest)
+
+
+@pytest.mark.model
+def test_candidate_onnx_identity_is_separate_from_v02(tmp_path):
+    source = os.getenv("KJNLAE_TEST_V03_ONNX_DIR")
+    expected_hash = os.getenv("KJNLAE_TEST_V03_ONNX_HASH")
+    if not source or not expected_hash:
+        pytest.skip("Local reviewed v0.3 candidate required")
+    artifact = verify_onnx_artifact(Path(source), expected_hash)
+    assert artifact.threshold == 0.5
+    assert artifact.trained_steps == 884
+    assert artifact.sha256 != ONNX_MODEL_SHA256
+    changed = tmp_path / "changed"
+    shutil.copytree(source, changed)
+    manifest = json.loads((changed / "manifest.json").read_text())
+    manifest["threshold"] = 0.1
+    (changed / "manifest.json").write_text(json.dumps(manifest))
+    changed_hash = hashlib.sha256((changed / "manifest.json").read_bytes()).hexdigest()
+    with pytest.raises(ValueError, match="threshold"):
+        verify_onnx_artifact(changed, changed_hash)
+    manifest["threshold"] = 0.5
+    manifest["source_manifest_sha256"] = "0" * 64
+    (changed / "manifest.json").write_text(json.dumps(manifest))
+    changed_hash = hashlib.sha256((changed / "manifest.json").read_bytes()).hexdigest()
+    with pytest.raises(ValueError, match="provenance"):
+        verify_onnx_artifact(changed, changed_hash)

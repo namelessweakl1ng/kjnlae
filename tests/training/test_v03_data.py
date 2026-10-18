@@ -16,10 +16,16 @@ def test_v03_authored_partitions_are_family_disjoint_and_source_balanced():
         assert len(selected) >= 40
         assert {row.label for row in selected} == {0, 1}
         assert {row.source for row in selected if row.label == 0} >= {
-            "retrieved_document", "webpage", "email", "tool_response"
+            "retrieved_document",
+            "webpage",
+            "email",
+            "tool_response",
         }
         assert {row.source for row in selected if row.label == 1} >= {
-            "retrieved_document", "webpage", "email", "tool_response"
+            "retrieved_document",
+            "webpage",
+            "email",
+            "tool_response",
         }
 
 
