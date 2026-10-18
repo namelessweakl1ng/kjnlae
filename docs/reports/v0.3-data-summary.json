@@ -1,0 +1,107 @@
+{
+  "label_split": {
+    "CALIBRATION": {
+      "0": 40,
+      "1": 40
+    },
+    "TRAIN": {
+      "0": 539,
+      "1": 345
+    },
+    "VALIDATION": {
+      "0": 20,
+      "1": 20
+    }
+  },
+  "source_label": {
+    "CALIBRATION": {
+      "attachment": {
+        "0": 8,
+        "1": 8
+      },
+      "email": {
+        "0": 8,
+        "1": 8
+      },
+      "retrieved_document": {
+        "0": 8,
+        "1": 8
+      },
+      "tool_response": {
+        "0": 8,
+        "1": 8
+      },
+      "webpage": {
+        "0": 8,
+        "1": 8
+      }
+    },
+    "TRAIN": {
+      "attachment": {
+        "0": 33,
+        "1": 18
+      },
+      "email": {
+        "0": 34,
+        "1": 18
+      },
+      "retrieved_document": {
+        "0": 49,
+        "1": 66
+      },
+      "tool_response": {
+        "0": 34,
+        "1": 18
+      },
+      "user": {
+        "0": 355,
+        "1": 208
+      },
+      "webpage": {
+        "0": 34,
+        "1": 17
+      }
+    },
+    "VALIDATION": {
+      "attachment": {
+        "0": 4,
+        "1": 4
+      },
+      "email": {
+        "0": 4,
+        "1": 4
+      },
+      "retrieved_document": {
+        "0": 4,
+        "1": 4
+      },
+      "tool_response": {
+        "0": 4,
+        "1": 4
+      },
+      "webpage": {
+        "0": 4,
+        "1": 4
+      }
+    }
+  },
+  "source_sha256": {
+    "bipia-train.jsonl": "5156bff7f318ce53f0a85968f11c56941c56deea91ecac31043a6b1934b9e86d",
+    "deepset-train.jsonl": "1b78d6359b288abe9fbd96168f4746c8d830fd6082d8c1a58354e345ca78ab34",
+    "v0.2-benign-train.jsonl": "2f846ed89ab8b9d9111e27c927289c6e91734de9880c6487dc1cfe908b2e91c1",
+    "v03-authored.jsonl": "3a46d829acff31e058d8eec57898a2d83e38e7102782881273d23bbc26a21e48",
+    "v2-original-train-only.jsonl": "1cf02225ee1d7b99511ebb8ef5fa1a51f2f63e3fce6f1edb1536b24ac2b521a7"
+  },
+  "split_counts": {
+    "CALIBRATION": 80,
+    "HELD_OUT_TEST": 0,
+    "TRAIN": 884,
+    "VALIDATION": 40
+  },
+  "split_sha256": {
+    "CALIBRATION": "4b10f6ea677557f46785faa20fe23ed0d77e58f94b969a5e44d208e66ecdd454",
+    "HELD_OUT_TEST": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "TRAIN": "65eacad9bcd94ab7b764279ed632e1b9d6fd3e666769b5c01be4b4099753e430",
+    "VALIDATION": "d139045b859040d42a891a0d74a058c3bd3ec80ba68ded9c8616caf60c6b7ce6"
+  }
+}
