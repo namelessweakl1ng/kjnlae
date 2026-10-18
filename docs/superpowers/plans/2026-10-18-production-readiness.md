@@ -42,8 +42,8 @@
 - [x] Run the affected test and entire no-weight Pytest suite under the non-UTF-8 locale; verify no implicit `Path.read_text/write_text` calls remain in `src/kjnlae`, `scripts` or `tests`.
 - [x] Verify original/ONNX manifests and archive checksums; encrypt the unchanged archive to the previously approved age public key; upload only numbered encrypted parts plus SHA256SUMS to the previously approved private repository; verify the remote commit and all part names/checksums.
 - [x] Run local Ruff, mypy, frontend tests/build, wheel build, real candidate `doctor` and benchmark with `KJNLAE_VERIFY_RELEASE=1 bash scripts/verify_all.sh`; record skipped tests separately.
-- [ ] Push PR 1 and require hosted Linux, Windows, macOS, frontend and container jobs to pass. If GitHub Actions remains inaccessible, use the public run page or ask for the exact failing log; do not claim green CI without evidence.
-- [ ] Review PR 1 for unchanged artifact hashes, no secrets/plaintext weights, portability and test validity; commit any findings before requesting merge.
+- [x] Push the PR 1 branch and verify hosted Linux, Windows, macOS, frontend and container jobs. [Quality run #151](https://github.com/namelessweakl1ng/kjnlae/actions/runs/39142368053) completed successfully at `927526b`; GitHub's PR API remains inaccessible from this workspace, so PR creation needs the manual compare link.
+- [x] Review the PR 1 diff for unchanged artifact hashes, no secrets/plaintext weights, portability and test validity. The independent review found no actionable issues; no merge is requested.
 
 ### PR 2: Independent evaluation and frozen release evidence
 
