@@ -1,14 +1,15 @@
 # Changelog
 
-## 0.3.2 — CPU-only ONNX inference (pending PyPI upload)
+## 0.3.2 — CPU-only ONNX inference
 
 - Replaced PyTorch/Transformers in the default install with ONNX Runtime CPU, Tokenizers and a verified weight-free graph template. Training libraries are optional under `[train]`; FastAPI/Uvicorn are optional under `[api]`.
 - `kjnlae model download` still verifies the immutable public fine-tuned checkpoint, then derives and verifies a separately identified ONNX artifact. The runtime never downloads or silently falls back.
 - Added real PyTorch/ONNX parity measurements, Python 3.11–3.14 Linux inference checks and a clean CPU dependency-resolution audit. Frozen fixtures showed no decision changes; false positives remain a known limitation.
 - New default artifact path and manifest pin require running `kjnlae model download` again. The old safetensors directory is retained for research. `model download --repo/--revision/--hash` overrides were removed; see [migration](docs/onnx-runtime.md#migration-from-031).
-- The source branch is not a PyPI publication. Windows/macOS real-weight tests and hosted CI for this change remain separate release checks.
+- Fixed worker cleanup when process startup fails; incomplete scans remain fail closed. The SDK quickstart now uses Python's required `__main__` guard for spawned workers.
+- The exact release artifact must be confirmed on PyPI before using an unpinned `pip install kjnlae`. Real-weight Windows/macOS tests remain unverified.
 
-## 0.3.1 — default model dependencies (pending PyPI upload)
+## 0.3.1 — intermediate source revision (not published to PyPI)
 
 - `pip install kjnlae` now includes PyTorch, Transformers, Safetensors and Hugging Face Hub dependencies without requiring `[ml]`.
 - Updated PyPI-first setup instructions and package-metadata verification tests. Model weight download is still explicit and hash-verified.

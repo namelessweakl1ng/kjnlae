@@ -17,7 +17,7 @@ The released weights declare Apache-2.0; the application source is MIT. Review [
 | Selected trained steps | 462 |
 | Quality status | `EXPERIMENTAL` |
 
-**Prerequisites for the 0.3.2 source branch:** install a supported Python 3.11–3.14 interpreter and install this branch with `python -m pip install .`. After 0.3.2 is published, `python -m pip install 'kjnlae>=0.3.2,<0.4'` will install the CPU inference runtime. Current PyPI 0.3.0 is an older release and does not have this installer. For the React dashboard, install `[api]` and build the frontend or use the Docker source build; see [platform instructions](../README.md). The public v0.2 source model is freely downloadable; ordinary users do not need a Hub login/token.
+**Prerequisites:** install a supported Python 3.11–3.14 interpreter and use `python -m pip install 'kjnlae>=0.3.2,<0.4'` once [PyPI](https://pypi.org/project/kjnlae/) serves that version, or `python -m pip install .` from the current source checkout. PyPI 0.3.0 is an older release and does not have this installer. For the React dashboard, install `[api]` and build the frontend or use the Docker source build; see [platform instructions](../README.md). The public v0.2 source model is freely downloadable; ordinary users do not need a Hub login/token.
 
 The same commands work in Linux, Windows PowerShell and macOS terminals after activating the project's virtual environment:
 
@@ -45,7 +45,7 @@ An advanced operator can specify `--directory` on both `model download` and `mod
 
 The scanner does **not** download or call Hugging Face during inference. A missing, incompatible, corrupt, timed-out, or incompletely processed artifact yields `INCOMPLETE`, not permission to continue. A model score is **not** a calibrated probability that an attack succeeds, and input `ALLOW` is never an action or output-release authorization.
 
-The original v0.2 checkpoint successfully passed public Hugging Face download/integrity verification on Fedora. The 0.3.2 branch recorded CPU ONNX actual-weight inference on Linux x86-64 Python 3.11–3.14 and per-window parity against the original PyTorch model in [verification](verification.md). The feature branch's [hosted CI run](https://github.com/namelessweakl1ng/kjnlae/actions/runs/39069710247) passed, including Windows/macOS no-weight tests. Windows/macOS real-weight inference has **not** yet been exercised.
+The original v0.2 checkpoint successfully passed public Hugging Face download/integrity verification on Fedora. The 0.3.2 runtime recorded CPU ONNX actual-weight inference on Linux x86-64 Python 3.11–3.14 and per-window parity against the original PyTorch model in [verification](verification.md). The [hosted main-branch CI run](https://github.com/namelessweakl1ng/kjnlae/actions/runs/39092350339) passed, including Windows/macOS no-weight tests. Windows/macOS real-weight inference has **not** yet been exercised.
 
 ## Maintainers: new model versions
 
@@ -53,4 +53,4 @@ The original v0.2 checkpoint successfully passed public Hugging Face download/in
 
 Do not silently overwrite v0.2's pinned weights. Retrain on lawfully acquired separated data, evaluate against frozen independent suites, produce a new manifest/sha256, publish a distinct version/revision and update the default installer pin and regression tests deliberately. The fine-tuned model's benign false-positive rate remains substantial in some tested distributions.
 
-The SDK and CLI are distributed on [PyPI](https://pypi.org/project/kjnlae/), but 0.3.2 is **not published** by this source branch. After review, a separate release is required. A source checkout with built frontend or the Docker reference setup is needed for the web dashboard: standalone Python wheels do not bundle compiled React assets.
+The SDK and CLI are distributed on [PyPI](https://pypi.org/project/kjnlae/). A merge or Git tag alone does not publish version 0.3.2; verify the released file there before installing without a version constraint. A source checkout with built frontend or the Docker reference setup is needed for the web dashboard: standalone Python wheels do not bundle compiled React assets.

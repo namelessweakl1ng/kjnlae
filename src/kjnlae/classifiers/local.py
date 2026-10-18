@@ -238,7 +238,7 @@ class LocalClassifier:
     def close(self) -> None:
         """Terminate the worker and release its pipe; safe to call repeatedly."""
         with self._lock:
-            if self._process is not None:
+            if self._process is not None and self._process.pid is not None:
                 if self._process.is_alive():
                     self._process.terminate()
                 self._process.join(timeout=1)
@@ -274,8 +274,10 @@ class LocalClassifier:
                 self._process = mp.get_context("spawn").Process(
                     target=_local_worker, args=(child, self.config), daemon=True
                 )
-                self._process.start()
-                child.close()
+                try:
+                    self._process.start()
+                finally:
+                    child.close()
                 if not parent.poll(max(0, deadline - time.monotonic())):
                     raise TimeoutError
                 loaded = parent.recv()
@@ -302,7 +304,7 @@ class LocalClassifier:
 
     def close_unlocked(self) -> None:
         """Worker cleanup for callers that already hold the classifier lock."""
-        if self._process is not None:
+        if self._process is not None and self._process.pid is not None:
             if self._process.is_alive():
                 self._process.terminate()
             self._process.join(timeout=1)

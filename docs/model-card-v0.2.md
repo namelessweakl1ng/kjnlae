@@ -61,7 +61,7 @@ The separately controlled gateway completed 2/2 authorized tasks and blocked 4/4
 
 ## Install and run locally
 
-Clone the [kjnlae 0.3.2 source](https://github.com/namelessweakl1ng/kjnlae) and install it as described in its README. PyPI 0.3.0 is still the older runtime until a separate release. Then, from the project root:
+Install kjnlae 0.3.2 or later from [PyPI](https://pypi.org/project/kjnlae/) when available, or clone the [source](https://github.com/namelessweakl1ng/kjnlae) and install it as described in its README. PyPI 0.3.0 uses the older runtime. For the PyPI package with the optional HTTP service, run `python -m pip install 'kjnlae[api]>=0.3.2,<0.4'`. From a source checkout, run:
 
 ```bash
 python -m pip install '.[api]'

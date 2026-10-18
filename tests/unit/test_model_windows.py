@@ -1,5 +1,9 @@
+import multiprocessing as mp
 from pathlib import Path
 
+import pytest
+
+import kjnlae.classifiers.local as local
 from kjnlae.classifiers.local import LocalClassifier, LocalModelConfig, build_windows, window_ranges
 from kjnlae.detection.preprocessing import InspectionView
 
@@ -37,3 +41,33 @@ def test_long_text_windows_cover_final_token() -> None:
     assert ranges[0] == (0, 128)
     assert ranges[-1][1] == 300
     assert set().union(*(set(range(start, end)) for start, end in ranges)) == set(range(300))
+
+
+def test_worker_start_failure_is_incomplete_and_cleanup_safe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_context = mp.get_context("spawn")
+    child_endpoints = []
+
+    class FailingContext:
+        def Pipe(self):  # type: ignore[no-untyped-def]
+            parent, child = original_context.Pipe()
+            child_endpoints.append(child)
+            return parent, child
+
+        def Process(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+            process = original_context.Process(*args, **kwargs)
+
+            def fail_start() -> None:
+                raise OSError("worker launch blocked")
+
+            monkeypatch.setattr(process, "start", fail_start)
+            return process
+
+    monkeypatch.setattr(local.mp, "get_context", lambda _: FailingContext())
+    classifier = LocalClassifier(LocalModelConfig(tmp_path, "f" * 64))
+    result = classifier.classify_views([InspectionView("original", "hi", ((0, 1), (1, 2)))], "user")
+    assert result.status == "ERROR"
+    assert not result.inspection_complete
+    assert child_endpoints[0].closed
+    classifier.close()
