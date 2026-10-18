@@ -98,7 +98,7 @@ class Settings:
             raise ValueError("Authority file must be regular and bounded")
         if self.production and metadata.st_mode & 0o077:
             raise ValueError("Production authority file must have mode 0600")
-        cfg = V2AuthorityFile.model_validate_json(path.read_text())
+        cfg = V2AuthorityFile.model_validate_json(path.read_text(encoding="utf-8"))
         if not cfg.principal or not cfg.tenant or not cfg.task:
             raise ValueError("Authority identity, tenant and task required")
         if any(record.tenant != cfg.tenant for record in cfg.resources):

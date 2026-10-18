@@ -29,7 +29,10 @@ def main() -> None:
             timeout=300,
             stdout=subprocess.DEVNULL,
         )
-        names = [item["metadata"]["name"] for item in json.loads(report.read_text())["install"]]
+        names = [
+            item["metadata"]["name"]
+            for item in json.loads(report.read_text(encoding="utf-8"))["install"]
+        ]
         blocked = unexpected_packages(names)
         if blocked:
             raise SystemExit(f"Unexpected GPU/training dependencies: {blocked}")

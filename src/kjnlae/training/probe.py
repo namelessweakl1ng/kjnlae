@@ -34,7 +34,7 @@ def check_resources(worker_rss: int, cgroup: int, disk_free: int) -> bool:
 
 def _worker_rss(pid: int) -> int:
     try:
-        for line in Path(f"/proc/{pid}/status").read_text().splitlines():
+        for line in Path(f"/proc/{pid}/status").read_text(encoding="utf-8").splitlines():
             if line.startswith("VmRSS:"):
                 return int(line.split()[1]) * 1024
     except (OSError, ValueError):
@@ -44,7 +44,7 @@ def _worker_rss(pid: int) -> int:
 
 def _cgroup_bytes() -> int:
     try:
-        return int(Path("/sys/fs/cgroup/memory.current").read_text())
+        return int(Path("/sys/fs/cgroup/memory.current").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return 0
 
@@ -159,7 +159,11 @@ def _probe_worker(config: ProbeConfig, rows: list[dict[str, Any]], queue: Any) -
 
 
 def run_probe(config: ProbeConfig) -> dict[str, Any]:
-    rows = [json.loads(line) for line in config.train_path.read_text().splitlines() if line]
+    rows = [
+        json.loads(line)
+        for line in config.train_path.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
     if any(row.get("split") != "TRAIN" for row in rows):
         raise ValueError("Probe requires TRAIN examples only")
     if len(rows) < 64:
@@ -220,6 +224,8 @@ def run_probe(config: ProbeConfig) -> dict[str, Any]:
     )
     if report["status"] != "COMPLETE":
         shutil.rmtree(config.output_dir / "experimental-probe", ignore_errors=True)
-    (config.output_dir / "probe-report.json").write_text(json.dumps(report, indent=2) + "\n")
+    (config.output_dir / "probe-report.json").write_text(
+        json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
     queue.close()
     return report

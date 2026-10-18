@@ -77,7 +77,7 @@ def import_bipia_attacks(source: Path, target: Path, repository_commit: str) -> 
     """Import only active injected TRAIN prompts, never BIPIA context or test data."""
     if repository_commit != PROVENANCE["bipia-a004b69"]["revision"]:
         raise ValueError("BIPIA revision differs from reviewed source")
-    data = json.loads(source.read_text())
+    data = json.loads(source.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError("BIPIA attack file must contain category lists")
     rows: list[str] = []
@@ -99,7 +99,7 @@ def import_bipia_attacks(source: Path, target: Path, repository_commit: str) -> 
             )
             rows.append(row.model_dump_json() + "\n")
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("".join(rows))
+    target.write_text("".join(rows), encoding="utf-8", newline="\n")
     return len(rows)
 
 
@@ -125,7 +125,7 @@ def import_deepset(source: Path, target: Path, split: Split) -> int:
         )
         rows.append(row.model_dump_json() + "\n")
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("".join(rows))
+    target.write_text("".join(rows), encoding="utf-8", newline="\n")
     return len(rows)
 
 
@@ -177,6 +177,9 @@ def prepare_dataset(sources: list[Path], output_dir: Path, seed: int) -> SplitMa
         (output_dir / f"{split.lower()}.jsonl").write_bytes(content)
     manifest = SplitManifest(seed, {s: len(rows[s]) for s in SPLITS}, split_hashes, source_hashes)
     (output_dir / "manifest.json").write_text(
-        json.dumps({**manifest.__dict__, "provenance": PROVENANCE}, indent=2, sort_keys=True) + "\n"
+        json.dumps({**manifest.__dict__, "provenance": PROVENANCE}, indent=2, sort_keys=True)
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     return manifest

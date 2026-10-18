@@ -18,7 +18,7 @@ def test_guard_context_manager_closes_owned_classifier(monkeypatch, tmp_path):
 
 
 def test_malformed_manifest_is_reported_as_corrupted(tmp_path):
-    (tmp_path / "manifest.json").write_text("[]")
+    (tmp_path / "manifest.json").write_text("[]", encoding="utf-8", newline="\n")
     digest = hashlib.sha256((tmp_path / "manifest.json").read_bytes()).hexdigest()
     with Guard(model_dir=str(tmp_path), model_hash=digest) as guard:
         result = guard.scan("A harmless sentence.")

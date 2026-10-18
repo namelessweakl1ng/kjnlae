@@ -8,8 +8,8 @@ from kjnlae.training.fit import FitConfig, class_weights, validate_partitions
 def test_fit_cannot_train_on_validation_rows(tmp_path: Path) -> None:
     train = tmp_path / "train.jsonl"
     validation = tmp_path / "validation.jsonl"
-    train.write_text('{"split":"VALIDATION","label":1}\n')
-    validation.write_text('{"split":"VALIDATION","label":0}\n')
+    train.write_text('{"split":"VALIDATION","label":1}\n', encoding="utf-8", newline="\n")
+    validation.write_text('{"split":"VALIDATION","label":0}\n', encoding="utf-8", newline="\n")
     with pytest.raises(ValueError, match="TRAIN"):
         validate_partitions(train, validation)
 

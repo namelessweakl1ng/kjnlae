@@ -85,8 +85,12 @@ def main(argv: list[str] | None = None) -> None:
             if args.command == "benchmark":
                 report = benchmark(guard, args.dataset)
                 args.output.parent.mkdir(parents=True, exist_ok=True)
-                args.output.with_suffix(".json").write_text(json.dumps(report, indent=2) + "\n")
-                args.output.with_suffix(".md").write_text(markdown_report(report))
+                args.output.with_suffix(".json").write_text(
+                    json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n"
+                )
+                args.output.with_suffix(".md").write_text(
+                    markdown_report(report), encoding="utf-8", newline="\n"
+                )
                 print(markdown_report(report))
                 if report["detector"]["status"] == "INCOMPLETE":
                     raise SystemExit(1)

@@ -31,20 +31,26 @@ def main() -> None:
 
     original = [
         TrainingExample.model_validate_json(line)
-        for line in (root / "datasets/fixtures/v2_seed.jsonl").read_text().splitlines()
+        for line in (root / "datasets/fixtures/v2_seed.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
         if line
     ]
     original_train = [row for row in original if row.split == "TRAIN"]
     (inputs / "v2-original-train-only.jsonl").write_text(
-        "".join(row.model_dump_json() + "\n" for row in original_train)
+        "".join(row.model_dump_json() + "\n" for row in original_train),
+        encoding="utf-8",
+        newline="\n",
     )
     authored = authored_rows()
     (inputs / "v03-authored.jsonl").write_text(
-        "".join(row.model_dump_json() + "\n" for row in authored)
+        "".join(row.model_dump_json() + "\n" for row in authored), encoding="utf-8", newline="\n"
     )
     final = [
         json.loads(line)
-        for line in (root / "datasets/fixtures/v0.3-frozen-final.jsonl").read_text().splitlines()
+        for line in (root / "datasets/fixtures/v0.3-frozen-final.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
     ]
     reject_frozen_overlap(
         authored
@@ -52,7 +58,7 @@ def main() -> None:
         + [
             TrainingExample.model_validate_json(line)
             for line in (root / "datasets/fixtures/v0.2-benign-train.jsonl")
-            .read_text()
+            .read_text(encoding="utf-8")
             .splitlines()
         ],
         final,
@@ -66,7 +72,7 @@ def main() -> None:
     public = [
         TrainingExample.model_validate_json(line)
         for name in ("deepset-train.jsonl", "bipia-train.jsonl")
-        for line in (inputs / name).read_text().splitlines()
+        for line in (inputs / name).read_text(encoding="utf-8").splitlines()
     ]
     reject_frozen_overlap(public, final)
     sources = [
@@ -80,7 +86,7 @@ def main() -> None:
     rows = [
         TrainingExample.model_validate_json(line)
         for path in sources
-        for line in path.read_text().splitlines()
+        for line in path.read_text(encoding="utf-8").splitlines()
     ]
     summary = {
         "split_counts": manifest.counts,
@@ -102,7 +108,9 @@ def main() -> None:
             for split in ("TRAIN", "VALIDATION", "CALIBRATION")
         },
     }
-    (work / "data-summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+    (work / "data-summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+    )
     print(json.dumps(summary, indent=2, sort_keys=True))
 
 

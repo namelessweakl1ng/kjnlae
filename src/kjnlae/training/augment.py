@@ -21,7 +21,8 @@ def augment_benign_sources(
 ) -> int:
     """Relabel only TRAIN provenance context; preserve text, label and family."""
     rows = [
-        TrainingExample.model_validate_json(line) for line in train_path.read_text().splitlines()
+        TrainingExample.model_validate_json(line)
+        for line in train_path.read_text(encoding="utf-8").splitlines()
     ]
     if not rows or any(row.split != "TRAIN" for row in rows):
         raise ValueError("Only a complete TRAIN partition may be augmented")
@@ -40,7 +41,9 @@ def augment_benign_sources(
         for row, source in zip(selected, SOURCE_SCHEDULE, strict=False)
     ]
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text("".join(row.model_dump_json() + "\n" for row in augmented))
+    output_path.write_text(
+        "".join(row.model_dump_json() + "\n" for row in augmented), encoding="utf-8", newline="\n"
+    )
     return len(augmented)
 
 

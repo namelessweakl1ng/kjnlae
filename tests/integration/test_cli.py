@@ -82,4 +82,7 @@ def test_cli_explicit_incomplete_and_retired_mode(tmp_path):
         env=environment,
     )
     assert result.returncode == 1
-    assert json.loads(report.with_suffix(".json").read_text())["detector"]["status"] == "INCOMPLETE"
+    assert (
+        json.loads(report.with_suffix(".json").read_text(encoding="utf-8"))["detector"]["status"]
+        == "INCOMPLETE"
+    )

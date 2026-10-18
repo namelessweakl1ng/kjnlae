@@ -62,7 +62,7 @@ def compare(
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
     artifact = verify_onnx_artifact(onnx_dir, onnx_hash)
-    derivative = json.loads((artifact.path / "manifest.json").read_text())
+    derivative = json.loads((artifact.path / "manifest.json").read_text(encoding="utf-8"))
     verify_artifact(torch_dir, derivative["source_manifest_sha256"])
     torch.set_num_threads(4)
     tokenizer = AutoTokenizer.from_pretrained(
@@ -158,7 +158,7 @@ def main() -> None:
     report = compare(args.torch, args.onnx, args.hash, rows)
     report["dataset_sha256"] = hashlib.sha256(args.dataset.read_bytes()).hexdigest()
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(json.dumps(report, indent=2))
 
 

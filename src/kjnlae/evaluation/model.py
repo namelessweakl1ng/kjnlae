@@ -60,7 +60,7 @@ def validate_evaluation_splits(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     partitions = []
     for path, expected in ((calibration, "CALIBRATION"), (held_out, "HELD_OUT_TEST")):
-        rows = [json.loads(line) for line in path.read_text().splitlines() if line]
+        rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
         if not rows or any(row.get("split") != expected for row in rows):
             raise ValueError(f"{expected} partition missing or malformed")
         partitions.append(rows)
@@ -114,7 +114,7 @@ def _score_rows(model_dir: Path, rows: list[dict[str, Any]]) -> tuple[list[float
 
 
 def evaluate_and_promote(fit_dir: Path, prepared_dir: Path) -> dict[str, Any]:
-    fit_report = json.loads((fit_dir / "fit-report.json").read_text())
+    fit_report = json.loads((fit_dir / "fit-report.json").read_text(encoding="utf-8"))
     if fit_report.get("status") != "COMPLETE" or fit_report.get("steps", 0) <= 0:
         raise ValueError("Complete genuine training report required")
     calibration_path = prepared_dir / "calibration.jsonl"
@@ -169,7 +169,7 @@ def evaluate_and_promote(fit_dir: Path, prepared_dir: Path) -> dict[str, Any]:
         "outcomes": outcomes,
     }
     report_path = fit_dir / "evaluation-report.json"
-    report_path.write_text(json.dumps(report, indent=2) + "\n")
+    report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n")
     best = fit_dir / "best"
     files = {p.name: _sha(p) for p in best.iterdir() if p.is_file() and p.name != "manifest.json"}
     manifest = {
@@ -195,7 +195,9 @@ def evaluate_and_promote(fit_dir: Path, prepared_dir: Path) -> dict[str, Any]:
         "files": files,
     }
     manifest_path = best / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+    )
     verified = verify_artifact(best, _sha(manifest_path))
     report["artifact_path"] = str(verified.path.resolve())
     report["manifest_sha256"] = verified.sha256

@@ -33,7 +33,9 @@ def test_v03_authored_text_never_copies_frozen_final_case():
     root = Path(__file__).resolve().parents[2]
     final = {
         json.loads(line)["text"].casefold()
-        for line in (root / "datasets/fixtures/v0.3-frozen-final.jsonl").read_text().splitlines()
+        for line in (root / "datasets/fixtures/v0.3-frozen-final.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
     }
     assert not ({row.text.casefold() for row in authored_rows()} & final)
 

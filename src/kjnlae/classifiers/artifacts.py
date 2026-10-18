@@ -147,7 +147,7 @@ def verify_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
     actual_hash = _hash(manifest_path)
     if expected_hash is not None and actual_hash != expected_hash:
         raise ValueError("Model manifest hash does not match deployment pin")
-    raw: Any = json.loads(manifest_path.read_text())
+    raw: Any = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError("Model manifest must be a JSON object")
     if raw.get("base_revision") != BASE_REVISION:
@@ -183,7 +183,7 @@ def verify_artifact(path: Path, expected_hash: str | None) -> ArtifactManifest:
             raise ValueError("Model file hash mismatch")
     if any(p.suffix in {".bin", ".pt", ".pkl", ".pickle"} for p in path.iterdir()):
         raise ValueError("Unsafe pickle weights present")
-    config: Any = json.loads((path / "config.json").read_text())
+    config: Any = json.loads((path / "config.json").read_text(encoding="utf-8"))
     if not isinstance(config, dict):
         raise ValueError("Model config must be a JSON object")
     if config.get("id2label") != {"0": "NON_INJECTION", "1": "INJECTION"}:
@@ -235,7 +235,7 @@ def verify_onnx_artifact(path: Path, expected_hash: str | None) -> ArtifactManif
     actual_hash = _hash(manifest_path)
     if expected_hash is not None and actual_hash != expected_hash:
         raise ValueError("ONNX manifest hash does not match deployment pin")
-    raw: Any = json.loads(manifest_path.read_text())
+    raw: Any = json.loads(manifest_path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError("Unexpected ONNX manifest")
     artifact_version = raw.get("artifact_version")
@@ -277,7 +277,7 @@ def verify_onnx_artifact(path: Path, expected_hash: str | None) -> ArtifactManif
         raise ValueError("Unreviewed ONNX graph")
     if any(p.suffix in {".bin", ".pt", ".pkl", ".pickle", ".safetensors"} for p in path.iterdir()):
         raise ValueError("Unexpected weights in ONNX artifact")
-    config: Any = json.loads((path / "config.json").read_text())
+    config: Any = json.loads((path / "config.json").read_text(encoding="utf-8"))
     if not isinstance(config, dict) or config.get("id2label") != {
         "0": "NON_INJECTION",
         "1": "INJECTION",
@@ -324,7 +324,7 @@ def convert_verified_model(source: Path, destination: Path) -> ArtifactManifest:
             "files": {p.name: _hash(p) for p in sorted(temporary.iterdir()) if p.is_file()},
         }
         (temporary / "manifest.json").write_text(
-            json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
         )
         result = verify_onnx_artifact(temporary, None)
         if destination.exists() or destination.is_symlink():

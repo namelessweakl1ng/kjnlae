@@ -28,7 +28,9 @@ def test_host_authority_file_is_server_owned_and_denies_forgery(tmp_path):
                 ],
                 "grants": [{"resource": "handbook", "operation": "read_document", "version": 1}],
             }
-        )
+        ),
+        encoding="utf-8",
+        newline="\n",
     )
     os.chmod(authority, 0o600)
     settings = Settings(

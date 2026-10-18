@@ -21,7 +21,7 @@ def main() -> None:
     args = parser.parse_args()
     artifact = verify_onnx_artifact(args.model, args.hash)
     rows: list[dict[str, Any]] = [
-        json.loads(line) for line in args.dataset.read_text().splitlines() if line
+        json.loads(line) for line in args.dataset.read_text(encoding="utf-8").splitlines() if line
     ]
     if not rows or any(row.get("label") not in (0, 1) for row in rows):
         raise ValueError("Labeled JSONL examples required")
@@ -62,7 +62,9 @@ def main() -> None:
         }
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+    args.output.write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+    )
     print(
         json.dumps(
             {

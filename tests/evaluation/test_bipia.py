@@ -16,7 +16,9 @@ def test_import_explicit_bipia_context_and_attack_metadata(tmp_path):
                 "task_name": "qa",
             }
         )
-        + "\n"
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     cases = import_export(path)
     assert cases[0]["attack"] is True and cases[0]["text"] == "article + attack"
@@ -25,6 +27,6 @@ def test_import_explicit_bipia_context_and_attack_metadata(tmp_path):
 
 def test_unknown_label_not_assumed_malicious(tmp_path):
     path = tmp_path / "unknown.jsonl"
-    path.write_text('{"context":"hello"}\n')
+    path.write_text('{"context":"hello"}\n', encoding="utf-8", newline="\n")
     with pytest.raises(ValueError):
         import_export(path)

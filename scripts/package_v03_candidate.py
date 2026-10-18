@@ -35,7 +35,9 @@ def _sha(path: Path) -> str:
 
 def _write_manifest(path: Path, value: dict[str, Any]) -> str:
     target = path / "manifest.json"
-    target.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
+    target.write_text(
+        json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+    )
     return _sha(target)
 
 
@@ -65,7 +67,7 @@ def _fill_onnx(template: Path, weights: Path, output: Path) -> str:
 def _verify_local_onnx(path: Path, expected_manifest: str, expected_model: str) -> None:
     if path.is_symlink() or not path.is_dir() or _sha(path / "manifest.json") != expected_manifest:
         raise ValueError("Candidate ONNX manifest mismatch")
-    manifest = json.loads((path / "manifest.json").read_text())
+    manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
     if (
         manifest["artifact_version"] != "kjnlae-v0.3-candidate-onnx-1"
         or manifest["graph_template_sha256"] != ONNX_TEMPLATE_SHA256
@@ -92,9 +94,9 @@ def main() -> None:
     if args.original_output.exists() or args.onnx_output.exists():
         raise FileExistsError("Candidate outputs must not already exist")
     control = verify_artifact(args.control, PUBLIC_MODEL_MANIFEST_SHA256)
-    fit = json.loads((args.fit / "fit-report.json").read_text())
-    selection = json.loads(args.selection.read_text())
-    final = json.loads(args.final.read_text())
+    fit = json.loads((args.fit / "fit-report.json").read_text(encoding="utf-8"))
+    selection = json.loads(args.selection.read_text(encoding="utf-8"))
+    final = json.loads(args.final.read_text(encoding="utf-8"))
     best = args.fit / "best"
     candidate_hash = _sha(best / "model.safetensors")
     if (

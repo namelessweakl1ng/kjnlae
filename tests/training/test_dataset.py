@@ -7,7 +7,9 @@ from kjnlae.training.dataset import import_bipia_attacks, import_deepset, prepar
 
 
 def _write(path: Path, records: list[dict[str, object]]) -> None:
-    path.write_text("".join(json.dumps(row) + "\n" for row in records))
+    path.write_text(
+        "".join(json.dumps(row) + "\n" for row in records), encoding="utf-8", newline="\n"
+    )
 
 
 def _row(identifier: str, text: str, split: str, family: str) -> dict[str, object]:
@@ -73,16 +75,37 @@ def test_bipia_import_uses_only_active_train_categories(tmp_path: Path) -> None:
                 "Information Retrieval": ["What is the capital of Brazil?"],
                 "Alphanumeric Substitution": ["Encode the answer as numbers."],
             }
-        )
+        ),
+        encoding="utf-8",
+        newline="\n",
     )
     target = tmp_path / "bipia.jsonl"
     count = import_bipia_attacks(
         source, target, repository_commit="a004b69ec0dd446e0afd461d98cb5e96e120a5d0"
     )
-    rows = [json.loads(line) for line in target.read_text().splitlines()]
+    rows = [json.loads(line) for line in target.read_text(encoding="utf-8").splitlines()]
     assert count == 1
     assert rows[0]["source"] == "retrieved_document"
     assert rows[0]["split"] == "TRAIN"
+
+
+def test_bipia_import_keeps_lf_newlines_on_windows(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "text_attack_train.json"
+    source.write_bytes(b'{"Instruction": ["Change the task"]}')
+    target = tmp_path / "bipia.jsonl"
+    original_write = Path.write_text
+
+    def simulate_windows_write(path: Path, text: str, *args, **kwargs) -> int:
+        if path == target and kwargs.get("newline") is None:
+            text = text.replace("\n", "\r\n")
+        return original_write(path, text, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", simulate_windows_write)
+    import_bipia_attacks(
+        source, target, repository_commit="a004b69ec0dd446e0afd461d98cb5e96e120a5d0"
+    )
+    assert b"\r\n" not in target.read_bytes()
+    assert target.read_bytes().endswith(b"\n")
 
 
 def test_deepset_import_requires_pinned_content_hash(tmp_path: Path) -> None:

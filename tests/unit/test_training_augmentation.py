@@ -17,11 +17,13 @@ def test_augmentation_keeps_train_label_and_family(tmp_path):
                 "provenance_id": "deepset-4f61ecb",
             }
         )
-        + "\n"
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     output = tmp_path / "augmented.jsonl"
     count = augment_benign_sources(source, output, count=1, seed=7)
-    row = json.loads(output.read_text())
+    row = json.loads(output.read_text(encoding="utf-8"))
     assert count == 1
     assert row["label"] == 0
     assert row["split"] == "TRAIN"
@@ -43,7 +45,9 @@ def test_augmentation_rejects_non_train_input(tmp_path):
                 "provenance_id": "deepset-4f61ecb",
             }
         )
-        + "\n"
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     output = tmp_path / "augmented.jsonl"
     try:

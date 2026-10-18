@@ -39,7 +39,7 @@ def test_download_is_pinned_and_refuses_overwrite(monkeypatch, tmp_path):
     def fake_download(**kwargs):
         calls.append(kwargs)
         directory = Path(kwargs["local_dir"])
-        directory.joinpath("manifest.json").write_text("invalid")
+        directory.joinpath("manifest.json").write_text("invalid", encoding="utf-8", newline="\n")
         return str(directory)
 
     monkeypatch.setitem(

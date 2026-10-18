@@ -24,7 +24,13 @@ def test_threshold_uses_only_supplied_calibration_rows() -> None:
 def test_evaluation_rejects_calibration_test_leakage(tmp_path: Path) -> None:
     cal = tmp_path / "calibration.jsonl"
     test = tmp_path / "held_out_test.jsonl"
-    cal.write_text('{"id":"same","split":"CALIBRATION","text":"x","label":1}\n')
-    test.write_text('{"id":"same","split":"HELD_OUT_TEST","text":"y","label":0}\n')
+    cal.write_text(
+        '{"id":"same","split":"CALIBRATION","text":"x","label":1}\n', encoding="utf-8", newline="\n"
+    )
+    test.write_text(
+        '{"id":"same","split":"HELD_OUT_TEST","text":"y","label":0}\n',
+        encoding="utf-8",
+        newline="\n",
+    )
     with pytest.raises(ValueError, match="leakage"):
         validate_evaluation_splits(cal, test)

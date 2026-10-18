@@ -29,7 +29,7 @@ def main() -> None:
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     control = verify_artifact(args.control, PUBLIC_MODEL_MANIFEST_SHA256)
-    selection = json.loads(args.selection.read_text())
+    selection = json.loads(args.selection.read_text(encoding="utf-8"))
     candidate_hash = hashlib.sha256((args.candidate / "model.safetensors").read_bytes()).hexdigest()
     if selection.get("status") != "SELECTED" or candidate_hash != selection.get(
         "candidate_weight_sha256"
@@ -56,7 +56,7 @@ def main() -> None:
     }
     datasets: dict[str, list[dict[str, Any]]] = {"deepset_116": deepset}
     for name, path in paths.items():
-        rows = json.loads(path.read_text())
+        rows = json.loads(path.read_text(encoding="utf-8"))
         datasets[name] = [{**row, "label": int(row["attack"])} for row in rows]
     report: dict[str, Any] = {
         "candidate_weight_sha256": candidate_hash,
@@ -74,7 +74,9 @@ def main() -> None:
             "candidate": _score(args.candidate, rows, float(selection["threshold"])),
         }
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+    args.output.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+    )
     print(
         json.dumps(
             {

@@ -53,7 +53,7 @@ def validate_partitions(
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     rows = []
     for path, expected in ((train, "TRAIN"), (validation, "VALIDATION")):
-        items = [json.loads(line) for line in path.read_text().splitlines() if line]
+        items = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
         if not items or any(row.get("split") != expected for row in items):
             raise ValueError(f"{expected} partition contains wrong or no rows")
         rows.append(items)
@@ -270,6 +270,8 @@ def fit(config: FitConfig) -> dict[str, Any]:
     )
     if report["status"] != "COMPLETE":
         shutil.rmtree(config.output_dir / "best", ignore_errors=True)
-    (config.output_dir / "fit-report.json").write_text(json.dumps(report, indent=2) + "\n")
+    (config.output_dir / "fit-report.json").write_text(
+        json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
     queue.close()
     return report

@@ -23,7 +23,7 @@ def _sha(path: Path) -> str:
 
 
 def _rows(path: Path) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in path.read_text().splitlines() if line]
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line]
 
 
 def _score(model: Path, rows: list[dict[str, Any]], threshold: float) -> dict[str, Any]:
@@ -47,7 +47,7 @@ def main() -> None:
     args = parser.parse_args()
     control = verify_artifact(args.control, PUBLIC_MODEL_MANIFEST_SHA256)
     fit_report_path = args.fit / "fit-report.json"
-    fit_report = json.loads(fit_report_path.read_text())
+    fit_report = json.loads(fit_report_path.read_text(encoding="utf-8"))
     if fit_report.get("status") != "COMPLETE" or fit_report.get("steps", 0) <= 0:
         raise ValueError("A complete, genuine fine-tuning run is required")
     candidate = args.fit / "best"
@@ -112,7 +112,9 @@ def main() -> None:
                 calibration, candidate_scores, threshold=threshold
             )
             report["candidate_validation"] = _score(candidate, validation, threshold)
-        selection_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")
+        selection_path.write_text(
+            json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+        )
         print(json.dumps({k: report[k] for k in ("status", "threshold", "objective")}, indent=2))
         return
 
@@ -120,7 +122,7 @@ def main() -> None:
     final_report = args.output / "final-comparison.json"
     if final_report.exists():
         raise FileExistsError("Frozen final set was already evaluated in this output directory")
-    selection = json.loads(selection_path.read_text())
+    selection = json.loads(selection_path.read_text(encoding="utf-8"))
     if (
         selection.get("status") != "SELECTED"
         or selection.get("candidate_weight_sha256") != candidate_hash
@@ -143,7 +145,9 @@ def main() -> None:
     control_recalibrated = selection.get("control_recalibrated_threshold")
     if control_recalibrated is not None:
         result["control_recalibrated"] = _score(args.control, final, float(control_recalibrated))
-    final_report.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    final_report.write_text(
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
+    )
     metrics = {
         key: result[key]["metrics"]
         for key in ("control", "control_recalibrated", "candidate")

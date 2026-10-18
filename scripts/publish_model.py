@@ -17,15 +17,15 @@ from kjnlae.classifiers.artifacts import PUBLIC_MODEL_MANIFEST_SHA256, verify_ar
 def prepare_public_files(model_dir: Path, stage: Path, repo_id: str) -> list[str]:
     """Copy exactly the manifest-listed artifact, manifest, and model card."""
     verify_artifact(model_dir, PUBLIC_MODEL_MANIFEST_SHA256)
-    manifest = json.loads((model_dir / "manifest.json").read_text())
+    manifest = json.loads((model_dir / "manifest.json").read_text(encoding="utf-8"))
     filenames = ["manifest.json", *sorted(manifest["files"])]
     for name in filenames:
         shutil.copy2(model_dir / name, stage / name)
 
     card_path = Path(__file__).resolve().parent.parent / "docs" / "model-card-v0.2.md"
-    card = card_path.read_text()
+    card = card_path.read_text(encoding="utf-8")
     card = card.replace("YOUR_HF_USERNAME/kjnlae-distilbert-v0.2", repo_id)
-    (stage / "README.md").write_text(card)
+    (stage / "README.md").write_text(card, encoding="utf-8", newline="\n")
     return [*filenames, "README.md"]
 
 
@@ -67,8 +67,10 @@ def main() -> None:
             repo_id = f"{username}/kjnlae-distilbert-v0.2"
             (staging / "README.md").write_text(
                 (staging / "README.md")
-                .read_text()
-                .replace("YOUR_HF_USERNAME/kjnlae-distilbert-v0.2", repo_id)
+                .read_text(encoding="utf-8")
+                .replace("YOUR_HF_USERNAME/kjnlae-distilbert-v0.2", repo_id),
+                encoding="utf-8",
+                newline="\n",
             )
         print(f"\nAbout to create and publish PUBLIC model https://huggingface.co/{repo_id}")
         print(
