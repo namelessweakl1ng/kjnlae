@@ -234,7 +234,7 @@ installer remains the rollback path. Runtime opt-in to the local candidate
 requires both exact `KJNLAE_MODEL_DIR` and `KJNLAE_MODEL_HASH`; removing
 those variables returns to the installed public default when present.
 
-## Private local backup awaiting transfer
+## Local and maintainer-private backups
 
 The original and derived artifacts and reproducibility inputs were also
 archived locally at
@@ -246,11 +246,17 @@ The archive is **494,088,831 bytes**, SHA-256
 input manifests under `data/`, the pinned public TRAIN downloads, probe/fit
 reports, sealed selection and final results, model card, training guide,
 frozen fixture, and machine-readable comparison and parity reports. The
-archive is **not encrypted or uploaded**, and it is not in Git. The staging
-directory can be rebuilt by copying the source model and these documents.
-Transfer this backup privately before the cloud workspace expires; do not
-publish the archive because it includes model weights and local prepared
-training data. After restoring it on Fedora, run:
+plaintext archive is **not in Git**. It was separately encrypted to the
+maintainer's existing age public key and uploaded to a private transfer
+repository as 30 numbered 16 MiB parts plus a SHA256SUMS manifest. The
+encrypted archive SHA-256 is
+`2883b64e11a00e7e943d2d3849afb89b8c5acae4325d852cf23de6e0803e3ae2`.
+The remote commit contains all 30 parts; each push and the remote tip were
+verified. A Fedora-side decrypt/restore has **not** yet been observed. The
+staging directory can be rebuilt by copying the source model and these
+documents. Do not publish the plaintext archive because it includes model
+weights and local prepared training data. After privately restoring it on
+Fedora, run:
 
 ```bash
 sha256sum -c v0.3-candidate-release-bundle.tar.zst.sha256
