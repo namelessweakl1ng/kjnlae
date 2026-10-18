@@ -1,6 +1,7 @@
 """Validate sealed, independently sourced classifier evaluation cases."""
 
 import hashlib
+import json
 import re
 import unicodedata
 from collections.abc import Mapping, Sequence
@@ -58,16 +59,84 @@ def load_cases(path: Path, expected_sha256: str) -> list[EvaluationCase]:
         raise ValueError("Duplicate evaluation family")
     if len({_normalized(row.text) for row in rows}) != len(rows):
         raise ValueError("Duplicate normalized evaluation text")
+    prior: list[tuple[str, str]] = []
+    for row in rows:
+        text = _normalized(row.text)
+        for previous_id, candidate in prior:
+            longest = max(len(text), len(candidate))
+            if longest < 20 or abs(len(text) - len(candidate)) > longest * 0.20:
+                continue
+            matcher = SequenceMatcher(None, text, candidate, autojunk=False)
+            if matcher.quick_ratio() >= 0.85 and matcher.ratio() >= 0.85:
+                raise ValueError(f"Near-duplicate final families: {row.id} / {previous_id}")
+        prior.append((row.id, text))
+    return rows
+
+
+def load_development_cases(directory: Path, expected_manifest_sha256: str) -> list[dict[str, str]]:
+    """Verify the prepared manifest and every development split before comparison."""
+    if not re.fullmatch(r"[0-9a-f]{64}", expected_manifest_sha256):
+        raise ValueError("Expected development manifest SHA-256 must be lowercase hex")
+    manifest_path = directory / "manifest.json"
+    if (
+        directory.is_symlink()
+        or not directory.is_dir()
+        or manifest_path.is_symlink()
+        or not manifest_path.is_file()
+        or manifest_path.stat().st_size > 65536
+    ):
+        raise ValueError("Development manifest missing, linked, or oversized")
+    raw = manifest_path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != expected_manifest_sha256:
+        raise ValueError("Development manifest SHA-256 mismatch")
+    manifest = json.loads(raw)
+    if not isinstance(manifest, dict):
+        raise ValueError("Development manifest must be an object")
+    hashes = manifest.get("sha256")
+    counts = manifest.get("counts")
+    if not isinstance(hashes, dict) or not isinstance(counts, dict):
+        raise ValueError("Development split hashes and counts required")
+    rows: list[dict[str, str]] = []
+    for split in ("TRAIN", "VALIDATION", "CALIBRATION"):
+        expected = hashes.get(split)
+        count = counts.get(split)
+        if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+            raise ValueError(f"Development {split} SHA-256 missing")
+        if type(count) is not int or not 1 <= count <= 100000:
+            raise ValueError(f"Development {split} count invalid")
+        path = directory / f"{split.lower()}.jsonl"
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > 32 * 1024 * 1024:
+            raise ValueError(f"Development {split} file missing, linked, or oversized")
+        content = path.read_bytes()
+        if hashlib.sha256(content).hexdigest() != expected:
+            raise ValueError(f"Development {split} SHA-256 mismatch")
+        parsed = [json.loads(line) for line in content.splitlines() if line]
+        if len(parsed) != count:
+            raise ValueError(f"Development {split} count mismatch")
+        for row in parsed:
+            if not isinstance(row, dict) or row.get("split") != split:
+                raise ValueError(f"Development {split} row malformed")
+            if any(
+                not isinstance(row.get(key), str) or not row[key]
+                for key in ("id", "family_id", "text")
+            ):
+                raise ValueError(f"Development {split} identity or text missing")
+            if len(row["text"]) > 32768:
+                raise ValueError(f"Development {split} text oversized")
+            rows.append(row)
     return rows
 
 
 def check_partition_leakage(
-    train: Sequence[Mapping[str, Any]], final: Sequence[EvaluationCase]
+    train: Sequence[Mapping[str, Any] | EvaluationCase], final: Sequence[EvaluationCase]
 ) -> None:
     """Reject family, normalized-text and high-similarity development overlap."""
-    train_items = [
-        (str(row["id"]), str(row["family_id"]), _normalized(str(row["text"]))) for row in train
-    ]
+    train_items: list[tuple[str, str, str]] = []
+    for row in train:
+        values = row.model_dump() if isinstance(row, EvaluationCase) else row
+        train_items.append(
+            (str(values["id"]), str(values["family_id"]), _normalized(str(values["text"])))
+        )
     families = {family for _, family, _ in train_items}
     normalized = {text for _, _, text in train_items}
     for case in final:

@@ -61,3 +61,29 @@ def test_check_partition_leakage_rejects_family_and_near_duplicate(tmp_path):
     with pytest.raises(ValueError, match="Near-duplicate"):
         check_partition_leakage([_case("train", long_text + " today")], final)
     check_partition_leakage([_case("train", "A recipe for vegetable soup.")], final)
+    check_partition_leakage(
+        [
+            type(final[0])(
+                id="train-model",
+                family_id="train-model",
+                text="A recipe for vegetable soup.",
+                label=0,
+                source="user",
+                category="ordinary",
+                provenance="original-mit",
+            )
+        ],
+        final,
+    )
+
+
+def test_final_loader_rejects_near_duplicate_content_families(tmp_path):
+    path, digest = _write_cases(
+        tmp_path,
+        [
+            _case("a", "The board reviewed the quarterly access policy before approval."),
+            _case("b", "The team reviewed the quarterly access policy before approval."),
+        ],
+    )
+    with pytest.raises(ValueError, match="Near-duplicate final"):
+        load_cases(path, digest)

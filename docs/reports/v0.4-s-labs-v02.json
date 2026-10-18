@@ -5,9 +5,9 @@
   "coverage": 1.0,
   "incomplete_ids": [],
   "latency_ms": {
-    "p50": 9.935,
-    "p95": 23.471,
-    "max": 1472.088
+    "p50": 9.808,
+    "p95": 21.286,
+    "max": 1633.966
   },
   "metrics": {
     "tp": 869,
@@ -2850,7 +2850,8 @@
     "user": 2101
   },
   "model_manifest_sha256": "6b69bd6a790119d4c53fe2df02447114eebcdadddec18d788bf1cf6825ecfa1c",
-  "elapsed_seconds": 27.887,
+  "development_manifest_sha256": "d658aa61583e1efca4444f927d4cfa11c337e3f6fb3a01c58f8a1d0e83f0e31e",
+  "elapsed_seconds": 28.126,
   "method": "Guard.scan; model-only ONNX inference; complete inputs only",
   "limitations": "External synthetic examples have unreviewed labels and do not establish RAG, email, webpage, tool-response or production performance."
 }

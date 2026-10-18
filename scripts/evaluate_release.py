@@ -12,7 +12,11 @@ from pathlib import Path
 
 from kjnlae import Guard
 from kjnlae.evaluation.external import S_LABS_TEST_SHA256, import_s_labs_test
-from kjnlae.evaluation.release_cases import load_cases
+from kjnlae.evaluation.release_cases import (
+    check_partition_leakage,
+    load_cases,
+    load_development_cases,
+)
 from kjnlae.evaluation.release_runner import evaluate_cases
 
 
@@ -24,6 +28,8 @@ def main() -> int:
     parser.add_argument("--sha256", help="precommitted SHA-256 for --cases")
     parser.add_argument("--model-dir", required=True, type=Path)
     parser.add_argument("--model-hash", required=True)
+    parser.add_argument("--development-dir", required=True, type=Path)
+    parser.add_argument("--development-manifest-sha256", required=True)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     if args.cases and not args.sha256:
@@ -37,6 +43,8 @@ def main() -> int:
         if args.cases
         else import_s_labs_test(args.s_labs_csv, expected_sha256=S_LABS_TEST_SHA256)
     )
+    development = load_development_cases(args.development_dir, args.development_manifest_sha256)
+    check_partition_leakage(development, cases)
     dataset_sha = args.sha256 if args.cases else S_LABS_TEST_SHA256
     started = time.perf_counter()
     with Guard(model_dir=str(args.model_dir), model_hash=args.model_hash) as guard:
@@ -48,6 +56,7 @@ def main() -> int:
             "dataset_count_by_label": dict(Counter(str(case.label) for case in cases)),
             "dataset_count_by_source": dict(Counter(case.source for case in cases)),
             "model_manifest_sha256": args.model_hash,
+            "development_manifest_sha256": args.development_manifest_sha256,
             "elapsed_seconds": round(time.perf_counter() - started, 3),
             "method": "Guard.scan; model-only ONNX inference; complete inputs only",
             "limitations": (
