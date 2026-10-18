@@ -101,8 +101,16 @@ one quotation, two code examples, two ordinary requests, one long analysis
 document, and three markup/encoding examples. The old 30-case regression
 remains particularly poor; it also has one more missed attack than v0.2.
 These results do not establish population accuracy, multilingual quality, or
-real-world attack success prevention. Full AgentDojo and external BIPIA
-benchmarks were not run.
+real-world attack success prevention. A separately pinned MIT-licensed
+S-Labs TEST diagnostic of 2,101 mostly short direct-user prompts found
+**4/1,050 benign false alarms but 359/1,051 labeled attacks missed** by this
+candidate at its unchanged threshold. The public v0.2 control had 90 false
+alarms and 182 misses on the same rows. Labels are unreviewed and some
+positive examples appear ambiguous, so this is a distribution warning, not a
+production estimate. See the [external diagnostic](reports/v0.4-external-diagnostic.md)
+for source hashes, complete counts, CPU timings and the v0.2 control's partial
+historical overlap check. Full AgentDojo and
+external BIPIA benchmarks were not run.
 
 The PyTorch checkpoint and a verified CPU ONNX derivative scored all 120
 final cases in 124 mapped token windows. Maximum absolute per-window score
@@ -124,8 +132,9 @@ The verified local source and ONNX directories are in
 `/workspace/kjnlae-v03-work/release-original` and
 `/workspace/kjnlae-v03-work/release-onnx`. They are not in Git or on
 Hugging Face. The existing public v0.2 model and default installer stay
-unchanged until gated publication is approved and an immutable v0.3 Hugging
-Face revision is verified. Advanced local evaluators can opt in by pinning
+unchanged. The proposed beta evidence gate is currently unmet; no Hugging
+Face publication or default promotion is justified by these results. Advanced
+local evaluators can opt in by pinning
 `KJNLAE_MODEL_DIR` to the ONNX directory and `KJNLAE_MODEL_HASH` to the ONNX
 manifest hash above. Never combine a v0.2 directory with a v0.3 hash.
 
