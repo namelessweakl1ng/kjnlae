@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Do not use opened 30/50/120 fixtures or Deepset TEST for new model selection; freeze a new family-disjoint final set before tuning.
-- No paid compute, public weight upload, `main` merge, PyPI publication or default-installer switch without explicit owner release approval.
+- No paid compute. The owner has approved implementation and conditional GitHub/Hugging Face publication, but failed release gates still prohibit publishing the candidate as a production model, merging `main`, PyPI publication or switching the default installer.
 - v0.2 stays immutable and available for rollback. Every model identity has an immutable revision, safetensors/ONNX hashes and matching threshold.
 - Model-only injection detection; no regex, untrained or mock fallback. A failed/incomplete scan is explicit; sensitive actions fail closed.
 - No privileged action derives authority from scanner scores, prompts, retrieved text, agent output or untrusted HTTP fields.
@@ -99,4 +99,4 @@
 
 ## Handoff and reporting
 
-Each PR report names its base/head, commit SHA, tests and hosted jobs actually observed, complete metrics, skipped/unverified checks, and next gate. PR 1 is the only implementation authorized in the present Phase 0 pass. Review this spec and plan before PR 2 work; future release promotion is a separate decision even if all test gates pass.
+Each PR report names its base/head, commit SHA, tests and hosted jobs actually observed, complete metrics, skipped/unverified checks, and next gate. The owner subsequently authorized continued implementation and conditional publication. PR 1 is complete; PR 2's pinned direct-user diagnostic and sealed evaluation runner are on `feat/v0.4-independent-evaluation`, while the required reviewed multi-source final set is still absent. The [measured diagnostic](../../reports/v0.4-external-diagnostic.md) shows the v0.3 candidate misses 359/1,051 labeled attacks; no production model publication or promotion is justified. Later PR and release gates remain open.

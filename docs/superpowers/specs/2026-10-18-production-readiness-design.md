@@ -1,6 +1,6 @@
 # kjnlae production-readiness design — review draft
 
-**Status:** proposed gates, frozen before any *new* model training or final evaluation. This document does not promote the existing model or authorize publication. The baseline is the unpublished v0.3 candidate at commit `14e7f47`; its 120-case authored test had 9/80 benign false alarms and 40/40 attacks detected, while the old 30-case regression had 6/12 benign false alarms and 2/18 missed attacks. These opened sets remain historical diagnostics.
+**Status:** approved release gates, frozen before any *new* model training or final evaluation. Approval authorizes implementation and conditional publication only after the gates pass; it does not promote the existing model. The baseline is the unpublished v0.3 candidate at commit `14e7f47`; its 120-case authored test had 9/80 benign false alarms and 40/40 attacks detected, while the old 30-case regression had 6/12 benign false alarms and 2/18 missed attacks. These opened sets remain historical diagnostics. The later [external diagnostic](../../reports/v0.4-external-diagnostic.md) documents a failed recall target without changing the gates.
 
 ## Intended outcome and decision
 
