@@ -121,7 +121,7 @@ class OutputGuard:
         if recipient is not None and recipient not in authority.destinations:
             violations.append("Output recipient denied")
         for resource in resources:
-            record = catalog.resolve(resource)
+            record = catalog.resolve(resource, authority.tenant)
             if record is None or record.tenant != authority.tenant:
                 violations.append("Output resource denied")
                 continue

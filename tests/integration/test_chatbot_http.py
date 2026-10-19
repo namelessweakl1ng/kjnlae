@@ -116,3 +116,55 @@ def test_chatbot_model_failure_and_injection_block():
         )
         assert response.json()["action_status"] == "DENIED"
         assert response.json()["detection_decision"] == "REQUIRE_REVIEW"
+
+
+def test_chatbot_uses_tenant_scoped_documents_for_shared_resource_ids():
+    resource = "summary"
+    catalog = ResourceCatalog(
+        (
+            ResourceRecord(resource, "hospital", "ward", 1),
+            ResourceRecord(resource, "enterprise", "hr", 1),
+        )
+    )
+    identities = {
+        f"{'h' * 32}": HostAuthority(
+            "doctor",
+            "hospital",
+            "Read assigned summary",
+            frozenset({"read_document"}),
+            (ResourceGrant("doctor", "hospital", resource, "read_document", 1, time.time() + 300),),
+        ),
+        f"{'e' * 32}": HostAuthority(
+            "analyst",
+            "enterprise",
+            "Read assigned summary",
+            frozenset({"read_document"}),
+            (
+                ResourceGrant(
+                    "analyst", "enterprise", resource, "read_document", 1, time.time() + 300
+                ),
+            ),
+        ),
+    }
+    app = create_chatbot_app(
+        ScanStub(),
+        identities,
+        catalog,
+        {
+            ("hospital", resource): "Hospital appointment Friday.",
+            ("enterprise", resource): "Enterprise handbook Monday.",
+        },
+    )
+    with TestClient(app) as client:
+        for key, expected, forbidden in (
+            ("h" * 32, "Hospital appointment", "Enterprise handbook"),
+            ("e" * 32, "Enterprise handbook", "Hospital appointment"),
+        ):
+            reply = client.post(
+                "/chat",
+                headers={"Authorization": f"Bearer {key}"},
+                json={"message": "Summarize", "resource": resource},
+            ).json()
+            assert reply["action_status"] == "EXECUTED"
+            assert expected in reply["answer"]
+            assert forbidden not in reply["answer"]

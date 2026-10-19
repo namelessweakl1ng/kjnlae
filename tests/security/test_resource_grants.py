@@ -82,3 +82,41 @@ def test_resource_version_and_unregistered_tool_denied() -> None:
         ).decision
         == "BLOCK"
     )
+
+
+def test_same_resource_id_is_owned_independently_by_each_tenant() -> None:
+    catalog = ResourceCatalog(
+        (
+            ResourceRecord("shared-name", "hospital-a", "clinician-a", 1),
+            ResourceRecord("shared-name", "hospital-b", "clinician-b", 2),
+        )
+    )
+    assert catalog.resolve("shared-name") is None
+    assert catalog.resolve("shared-name", "hospital-a") == ResourceRecord(
+        "shared-name", "hospital-a", "clinician-a", 1
+    )
+    gateway = ActionGateway()
+    for tenant, principal, version in (
+        ("hospital-a", "clinician-a", 1),
+        ("hospital-b", "clinician-b", 2),
+    ):
+        authority = HostAuthority(
+            principal,
+            tenant,
+            "Read assigned patient",
+            frozenset({"read_document"}),
+            (
+                ResourceGrant(
+                    principal, tenant, "shared-name", "read_document", version, time.time() + 300
+                ),
+            ),
+        )
+        action = ProposedAction(tool="read_document", tenant=tenant, resource="shared-name")
+        assert gateway.authorize_v2(action, authority, catalog).decision == "ALLOW"
+        other_tenant = "hospital-b" if tenant == "hospital-a" else "hospital-a"
+        assert (
+            gateway.authorize_v2(
+                action.model_copy(update={"tenant": other_tenant}), authority, catalog
+            ).decision
+            == "BLOCK"
+        )

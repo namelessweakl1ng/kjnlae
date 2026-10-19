@@ -35,7 +35,7 @@ def _run(
         grants,
         frozenset({"approved@example.test"}),
     )
-    record = catalog.resolve(resource)
+    record = catalog.resolve(resource, authority.tenant)
     can_read = (
         record is not None
         and record.tenant == authority.tenant

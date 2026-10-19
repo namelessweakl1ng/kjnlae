@@ -34,7 +34,7 @@ class ActionGateway:
         decision = self.authorize_v2(action, authority, catalog)
         if decision.decision != "REQUIRE_REVIEW":
             raise ValueError("Action is not eligible for human approval")
-        record = catalog.resolve(action.resource)
+        record = catalog.resolve(action.resource, action.tenant)
         assert record is not None
         with self._lock:
             now = time.monotonic()
@@ -79,7 +79,7 @@ class ActionGateway:
             return deny("Verified principal and tenant required")
         if action.tool == "admin" or action.tool not in authority.allowed_tools:
             return deny("Tool is not registered for this principal")
-        record = catalog.resolve(action.resource)
+        record = catalog.resolve(action.resource, action.tenant)
         if record is None or record.tenant != authority.tenant:
             return deny("Resource or tenant denied")
         if not any(

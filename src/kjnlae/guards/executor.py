@@ -45,7 +45,7 @@ class GuardedExecutor:
         )
         if authorization.decision != "ALLOW":
             return ExecutionResult("DENIED", authorization.reason)
-        record = self.catalog.resolve(action.resource)
+        record = self.catalog.resolve(action.resource, action.tenant)
         if (
             record is None
             or record.version != authorization.resource_version

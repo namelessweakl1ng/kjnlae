@@ -66,7 +66,7 @@ class RagGateway:
                 continue
             if not words.intersection(re.findall(r"\w+", chunk.title.casefold())):
                 continue
-            record = self.catalog.resolve(chunk.resource)
+            record = self.catalog.resolve(chunk.resource, context.tenant)
             if record is None or record.tenant != context.tenant:
                 continue
             action = ProposedAction(
