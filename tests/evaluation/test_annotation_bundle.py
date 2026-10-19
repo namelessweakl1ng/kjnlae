@@ -75,6 +75,7 @@ def test_review_bundle_blinds_upstream_labels_and_preserves_sealed_provenance(tm
         build_review_bundle(candidates, output)
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Bundle tamper tests require POSIX permissions")
 def test_review_bundle_detects_missing_duplicate_and_modified_mapping(tmp_path):
     output = tmp_path / "private"
     rows = [Candidate("agentdojo-1", "Text one", "tool_response", "Task", 1, "source-a")]
