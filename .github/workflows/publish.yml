@@ -26,8 +26,51 @@ jobs:
           name: python-distributions
           path: dist/
 
-  publish:
+  wheel-smoke:
     needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.13", "3.14"]
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-distributions
+          path: dist/
+      - name: Install built wheel in a clean environment
+        run: |
+          python -m venv .wheel-smoke
+          .wheel-smoke/bin/python -m pip install --upgrade pip
+          .wheel-smoke/bin/python -m pip install dist/kjnlae-*.whl
+          .wheel-smoke/bin/python -m pip check
+      - name: Check required CPU and model-download dependencies
+        run: |
+          .wheel-smoke/bin/python - <<'PY'
+          from importlib import metadata
+
+          import kjnlae
+          import huggingface_hub
+          import onnx
+          import onnxruntime
+          import safetensors
+          import tokenizers
+
+          requirements = metadata.requires("kjnlae") or []
+          assert any(
+              requirement.lower().replace("_", "-").startswith("huggingface-hub")
+              for requirement in requirements
+          ), "Built wheel does not declare huggingface-hub"
+          assert metadata.version("kjnlae") == kjnlae.__version__
+          print("Installed wheel and its required dependency imports are available")
+          PY
+          .wheel-smoke/bin/kjnlae model download --help
+
+  publish:
+    needs: [build, wheel-smoke]
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
