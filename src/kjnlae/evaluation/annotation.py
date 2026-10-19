@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import random
 import re
 import shutil
@@ -73,6 +74,10 @@ def _write_jsonl(path: Path, records: Iterable[Mapping[str, Any]]) -> None:
     path.chmod(0o600)
 
 
+def _private_permissions_supported() -> bool:
+    return os.name == "posix"
+
+
 def build_review_bundle(
     candidates: Iterable[Candidate],
     output: Path,
@@ -102,6 +107,8 @@ def build_review_bundle(
             raise ValueError("Annotation candidates contain duplicate ids or normalized text")
         ids.add(row.id)
         normalized.add(text)
+    if not _private_permissions_supported():
+        raise OSError("Private annotation bundle requires POSIX owner-only permissions")
     random.Random(42).shuffle(rows)
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=".kjnlae-review-", dir=output.parent))

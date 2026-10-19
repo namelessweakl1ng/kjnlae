@@ -1,9 +1,11 @@
 import hashlib
 import json
+import os
 import subprocess
 
 import pytest
 
+from kjnlae.evaluation import annotation
 from kjnlae.evaluation.annotation import (
     Candidate,
     agentdojo_candidates,
@@ -27,6 +29,11 @@ def test_review_bundle_blinds_upstream_labels_and_preserves_sealed_provenance(tm
             "source-b",
         ),
     ]
+    if os.name != "posix":
+        with pytest.raises(OSError, match="POSIX"):
+            build_review_bundle(candidates, output, source_metadata={"example": "pinned"})
+        assert not output.exists()
+        return
     manifest = build_review_bundle(candidates, output, source_metadata={"example": "pinned"})
     review = [json.loads(line) for line in (output / "review.jsonl").read_text().splitlines()]
     provenance = [
@@ -45,6 +52,16 @@ def test_review_bundle_blinds_upstream_labels_and_preserves_sealed_provenance(tm
     assert (output / "sealed-provenance.jsonl").stat().st_mode & 0o077 == 0
     with pytest.raises(FileExistsError):
         build_review_bundle(candidates, output)
+
+
+def test_review_bundle_fails_closed_without_private_permissions(tmp_path, monkeypatch):
+    monkeypatch.setattr(annotation, "_private_permissions_supported", lambda: False)
+    with pytest.raises(OSError, match="POSIX"):
+        build_review_bundle(
+            [Candidate("first", "Summarize memo", "user", "Summarize", 0, "source")],
+            tmp_path / "review",
+        )
+    assert not (tmp_path / "review").exists()
 
 
 def test_agentdojo_import_preserves_legitimate_task_and_deduplicates_text(tmp_path):
