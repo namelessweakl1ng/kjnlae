@@ -8,7 +8,7 @@ The model has material false positives and can miss attacks. Do not use its scor
 
 **No repository clone needed.** The current SDK is **0.3.2**. It supports Python **3.11–3.14**; Linux x86-64 has been verified with real model inference. See the [compatibility matrix](docs/onnx-runtime.md#compatibility) for other platforms.
 
-**Version 0.3.2 is published on [PyPI](https://pypi.org/project/kjnlae/), but `pip install kjnlae` may fail when your default package index or mirror still lists only 0.3.0.** This occurred in a fresh Fedora/Python 3.14 virtual environment: the ordinary command reported `No matching distribution found`, while the direct official-PyPI command below installed 0.3.2 successfully. Use that command to bypass stale index listings. You do **not** need Git or a repository clone. Model setup is a separate step.
+**Install from [PyPI](https://pypi.org/project/kjnlae/) with one command: `pip install kjnlae`.** Version 0.3.2 supports Python 3.11–3.14. You do not need to clone this repository or install Git. The model is downloaded separately in step 2.
 
 ### 1. Install
 
@@ -17,8 +17,7 @@ The model has material false positives and can miss attacks. Do not use its scor
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install --isolated --no-cache-dir --index-url https://pypi.org/simple/ "kjnlae==0.3.2"
+pip install kjnlae
 ```
 
 **Windows PowerShell (Python 3.12):**
@@ -26,19 +25,10 @@ python -m pip install --isolated --no-cache-dir --index-url https://pypi.org/sim
 ```powershell
 py -3.12 -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install --isolated --no-cache-dir --index-url https://pypi.org/simple/ "kjnlae==0.3.2"
+pip install kjnlae
 ```
 
-**When your default package index is up to date**, the shorter `pip install kjnlae` works as well. Check what your configured index sees with `python -m pip index versions kjnlae`. Upgrading pip or recreating a virtual environment does **not** necessarily fix a stale index.
-
-To upgrade an older installation directly from official PyPI:
-
-```bash
-python -m pip install --isolated --no-cache-dir --index-url https://pypi.org/simple/ --upgrade "kjnlae>=0.3.2,<0.4"
-```
-
-`--isolated` ignores user pip configuration and environment variables, `--index-url` selects public PyPI, and `--no-cache-dir` avoids cached responses. If your network requires a corporate proxy or package index, use its approved configuration. For reproducible applications, pin a reviewed version such as `kjnlae==0.3.2`.
+To upgrade an earlier installation, use `python -m pip install --upgrade kjnlae`. For reproducible applications, you can pin `kjnlae==0.3.2`. If pip reports **No matching distribution found**, see [troubleshooting](#troubleshooting): the default package index may be a stale mirror.
 
 ### 2. Download and verify the model
 
@@ -63,10 +53,18 @@ Model scores are uncalibrated classifier scores, not probabilities of successful
 
 | Issue | Solution |
 | --- | --- |
-| `No matching distribution found` on Python 3.11–3.14 | Your default pip index may not see 0.3.2 yet. Use the **direct official-PyPI install command in step 1**, which succeeded on Fedora/Python 3.14 when ordinary `pip install kjnlae` failed. To diagnose, inspect `python -m pip config list -v` and `python -m pip index versions kjnlae`. |
-| `ModuleNotFoundError: huggingface_hub` | Check `python -c "import kjnlae; print(kjnlae.__version__)"` and install 0.3.2 using the **direct official-PyPI command in step 1**; that version declares the model-download dependency. |
+| `No matching distribution found` despite using Python 3.11–3.14 | Your configured pip index or mirror may not list the current release. Check `python -m pip config list -v` and `python -m pip index versions kjnlae`. Retry against official PyPI with the command below. |
+| `ModuleNotFoundError: huggingface_hub` | You may have an older 0.3.0 installation. Check `python -c "import kjnlae; print(kjnlae.__version__)"` and upgrade to 0.3.2 or newer. |
 | `doctor` reports `INCOMPLETE` or `MODEL_WORKER_FAILED` | Run `python -m pip check`, then `kjnlae model verify` and `kjnlae doctor`; review [ONNX runtime troubleshooting](docs/onnx-runtime.md). Incomplete scans do not clear inputs. |
-| Model download destination already exists | Run `kjnlae model verify` before attempting any model replacement; the installer will not overwrite it. |
+| Model download destination already exists | Run `kjnlae model verify` before attempting model replacement; the installer does not overwrite existing files. |
+
+If your default index fails to find kjnlae, this explicitly uses the official public PyPI index:
+
+```bash
+python -m pip install --isolated --no-cache-dir --index-url https://pypi.org/simple/ kjnlae
+```
+
+An ordinary `pip install kjnlae` works when pip uses an up-to-date index. In one Fedora Python 3.14 environment, changing the configured pip index to official PyPI resolved the issue. If your organization requires a private package mirror, follow its approved configuration instead of changing it blindly.
 
 ### Python SDK
 
@@ -131,11 +129,11 @@ Only your authenticated application may create `HostAuthority`, grants, catalog 
 ## HTTP API and dashboard
 
 ```bash
-python -m pip install --isolated --no-cache-dir --index-url https://pypi.org/simple/ "kjnlae[api]==0.3.2"
+pip install "kjnlae[api]"
 kjnlae serve  # 127.0.0.1:8000
 ```
 
-Once your configured index sees 0.3.2, the shorter `python -m pip install 'kjnlae[api]>=0.3.2,<0.4'` works too. The optional FastAPI service exposes `POST /v2/scan`, `/v2/rag/inspect`, `/v2/guard/action`, `/v2/guard/output`, and readiness/capabilities endpoints. `/v2/guard/action` is a **preview**: it does not execute a tool or consume approval. `/v2/guard/output` inspects output but does not authorize its release. The standalone PyPI wheel serves the API only; compiled React dashboard assets are supplied by a source build or the Docker image. See [HTTP examples](docs/api.md) and [deployment](docs/deployment.md). Production HTTP deployment needs TLS, authentication, trusted hosts, explicit CORS, and a separate per-user identity layer.
+The optional FastAPI service exposes `POST /v2/scan`, `/v2/rag/inspect`, `/v2/guard/action`, `/v2/guard/output`, and readiness/capabilities endpoints. `/v2/guard/action` is a **preview**: it does not execute a tool or consume approval. `/v2/guard/output` inspects output but does not authorize its release. The standalone PyPI wheel serves the API only; compiled React dashboard assets are supplied by a source build or the Docker image. See [HTTP examples](docs/api.md) and [deployment](docs/deployment.md). Production HTTP deployment needs TLS, authentication, trusted hosts, explicit CORS, and a separate per-user identity layer.
 
 ## Install from source (for contributors)
 
