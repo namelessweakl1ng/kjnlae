@@ -77,25 +77,28 @@ class ResourceCatalog:
     """Thread-safe in-memory resource catalog used by the synthetic hosts."""
 
     def __init__(self, records: tuple[ResourceRecord, ...] = ()) -> None:
-        self._records = {record.id: record for record in records}
+        self._records = {(record.tenant, record.id): record for record in records}
         self._lock = threading.RLock()
 
-    def resolve(self, resource: str) -> ResourceRecord | None:
-        """Return the current record for an exact resource identifier."""
+    def resolve(self, resource: str, tenant: str | None = None) -> ResourceRecord | None:
+        """Resolve within a tenant; legacy unscoped reads fail on ambiguous IDs."""
         with self._lock:
-            return self._records.get(resource)
+            if tenant is not None:
+                return self._records.get((tenant, resource))
+            matches = [record for (_, name), record in self._records.items() if name == resource]
+            return matches[0] if len(matches) == 1 else None
 
     def replace(self, record: ResourceRecord) -> None:
         """Advance a record so grants and approvals for older versions expire."""
         with self._lock:
-            self._records[record.id] = record
+            self._records[(record.tenant, record.id)] = record
 
     def run_if_current(
         self, expected: ResourceRecord, callback: Callable[[], T]
     ) -> tuple[bool, T | None]:
         """Local synthetic adapter hook; external stores need their own transaction."""
         with self._lock:
-            record = self._records.get(expected.id)
+            record = self._records.get((expected.tenant, expected.id))
             if record != expected:
                 return False, None
             return True, callback()

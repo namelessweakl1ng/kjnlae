@@ -71,7 +71,7 @@ def create_chatbot_app(
     scanner: Scanner,
     identities: Mapping[str, HostAuthority],
     catalog: ResourceCatalog,
-    documents: Mapping[str, str],
+    documents: Mapping[str | tuple[str, str], str],
     output_guard: OutputGuard | None = None,
 ) -> FastAPI:
     """Keys and authorities originate in the host, never the request body.
@@ -103,7 +103,15 @@ def create_chatbot_app(
     @app.post("/chat", response_model=ChatResult)
     def chat(request: ChatRequest, authorization: str | None = Header(default=None)) -> ChatResult:
         authority = resolve(authorization)
-        record = catalog.resolve(request.resource)
+        record = catalog.resolve(request.resource, authority.tenant)
+        scoped_key = (authority.tenant, request.resource)
+        # An unscoped document key is safe only when the catalog ID is unique.
+        document_key: str | tuple[str, str] = (
+            scoped_key if scoped_key in documents else request.resource
+        )
+        source = documents.get(document_key)
+        if document_key == request.resource and catalog.resolve(request.resource) is None:
+            source = None
         action = ProposedAction(
             tool="read_document", tenant=authority.tenant, resource=request.resource
         )
@@ -112,7 +120,7 @@ def create_chatbot_app(
         eligible = (
             record is not None
             and record.tenant == authority.tenant
-            and request.resource in documents
+            and source is not None
             and any(
                 grant.permits(action, authority.principal, record.version)
                 for grant in authority.grants
@@ -124,7 +132,7 @@ def create_chatbot_app(
                 action_status="DENIED",
                 output_decision="NOT_ATTEMPTED",
             )
-        source = documents[request.resource]
+        assert source is not None
         scan = scanner.scan(source, source="retrieved_document")
         if scan.policy_decision != "ALLOW":
             return ChatResult(

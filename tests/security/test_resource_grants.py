@@ -82,3 +82,67 @@ def test_resource_version_and_unregistered_tool_denied() -> None:
         ).decision
         == "BLOCK"
     )
+
+
+def test_same_resource_id_is_owned_independently_by_each_tenant() -> None:
+    catalog = ResourceCatalog(
+        (
+            ResourceRecord("shared-name", "hospital-a", "clinician-a", 1),
+            ResourceRecord("shared-name", "hospital-b", "clinician-b", 2),
+        )
+    )
+    assert catalog.resolve("shared-name") is None
+    assert catalog.resolve("shared-name", "hospital-a") == ResourceRecord(
+        "shared-name", "hospital-a", "clinician-a", 1
+    )
+    gateway = ActionGateway()
+    for tenant, principal, version in (
+        ("hospital-a", "clinician-a", 1),
+        ("hospital-b", "clinician-b", 2),
+    ):
+        authority = HostAuthority(
+            principal,
+            tenant,
+            "Read assigned patient",
+            frozenset({"read_document"}),
+            (
+                ResourceGrant(
+                    principal, tenant, "shared-name", "read_document", version, time.time() + 300
+                ),
+            ),
+        )
+        action = ProposedAction(tool="read_document", tenant=tenant, resource="shared-name")
+        assert gateway.authorize_v2(action, authority, catalog).decision == "ALLOW"
+        other_tenant = "hospital-b" if tenant == "hospital-a" else "hospital-a"
+        assert (
+            gateway.authorize_v2(
+                action.model_copy(update={"tenant": other_tenant}), authority, catalog
+            ).decision
+            == "BLOCK"
+        )
+
+
+def test_identical_versions_do_not_transfer_grants_or_approvals_between_tenants() -> None:
+    catalog = ResourceCatalog(
+        (ResourceRecord("shared", "north", "alice", 7), ResourceRecord("shared", "south", "bob", 7))
+    )
+    gateway = ActionGateway()
+    action = ProposedAction(tool="delete_document", tenant="north", resource="shared")
+    authority = HostAuthority(
+        "alice",
+        "north",
+        "Delete owned file",
+        frozenset({"delete_document"}),
+        (ResourceGrant("alice", "north", "shared", "delete_document", 7, time.time() + 300),),
+    )
+    approval = gateway.approve_v2(action, authority, catalog, reviewer="reviewer")
+    south = action.model_copy(update={"tenant": "south"})
+    assert (
+        gateway.authorize_v2(south, authority, catalog, approval_token=approval).decision == "BLOCK"
+    )
+    catalog.replace(ResourceRecord("shared", "north", "alice", 8))
+    assert (
+        gateway.authorize_v2(action, authority, catalog, approval_token=approval).decision
+        == "BLOCK"
+    )
+    assert catalog.resolve("shared") is None

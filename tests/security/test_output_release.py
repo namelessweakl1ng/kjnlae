@@ -48,3 +48,34 @@ def test_known_secret_encoded_in_output_is_blocked() -> None:
     assert guard.inspect("MOCK<!-- -->-SECRET").decision == "BLOCK"
     assert guard.inspect("MOCK<span></span>-SECRET").decision == "BLOCK"
     assert guard.inspect("<!-- hidden -->").decision == "ALLOW"
+
+
+def test_shared_id_output_release_requires_exact_tenant_grants_and_controls() -> None:
+    catalog = ResourceCatalog(
+        (ResourceRecord("shared", "north", "alice", 3), ResourceRecord("shared", "south", "bob", 3))
+    )
+    guard = OutputGuard()
+    north = HostAuthority(
+        "alice",
+        "north",
+        "Read report",
+        frozenset({"read_document"}),
+        (ResourceGrant("alice", "north", "shared", "read_document", 3, time.time() + 300),),
+    )
+    assert guard.release("North report", None, None, ["shared"], north, catalog).decision == "ALLOW"
+    assert (
+        guard.release(
+            "North report", None, None, ["shared"], north, catalog, controls_ready=False
+        ).decision
+        == "BLOCK"
+    )
+    assert (
+        guard.release(
+            "North report", None, "elsewhere.invalid", ["shared"], north, catalog
+        ).decision
+        == "BLOCK"
+    )
+    south = HostAuthority("bob", "south", "Read report", frozenset({"read_document"}), north.grants)
+    assert guard.release("North report", None, None, ["shared"], south, catalog).decision == "BLOCK"
+    catalog.replace(ResourceRecord("shared", "north", "alice", 4))
+    assert guard.release("North report", None, None, ["shared"], north, catalog).decision == "BLOCK"
