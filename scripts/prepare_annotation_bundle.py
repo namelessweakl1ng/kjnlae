@@ -61,7 +61,7 @@ def main() -> None:
     output = args.output.resolve()
     if output == repository or repository in output.parents:
         parser.error("The private annotation bundle must be written outside the Git repository")
-    if output.exists():
+    if output.exists() or output.with_name(output.name + "-reviewer").exists():
         parser.error("The annotation output already exists")
     verify_git_checkout(args.agentdojo_checkout, AGENTDOJO_REVISION)
     verify_git_checkout(args.bipia_checkout, BIPIA_REVISION)
@@ -75,8 +75,10 @@ def main() -> None:
     if file_sha256(neuralchemy) != NEURALCHEMY_SHA256:
         parser.error("NeurAlchemy test parquet SHA-256 mismatch")
 
-    stats: dict[str, int] = {}
-    candidates = agentdojo_candidates(args.agentdojo_checkout / "runs", stats=stats)
+    stats: dict[str, int | str] = {}
+    candidates = agentdojo_candidates(
+        args.agentdojo_checkout / "runs", stats=stats, expected_revision=AGENTDOJO_REVISION
+    )
     for relative, digest, source in BIPIA_FILES.values():
         candidates.extend(
             import_bipia_file(
@@ -110,7 +112,19 @@ def main() -> None:
         },
     }
     manifest = build_review_bundle(candidates, output, source_metadata=metadata)
-    print(json.dumps({"output": str(output), "manifest": manifest}, indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "sealed_output": str(output),
+                "reviewer_output": str(output.with_name(output.name + "-reviewer")),
+                "candidate_count": manifest["candidate_count"],
+                "review_sha256": manifest["review_sha256"],
+                "sealed_provenance_sha256": manifest["sealed_provenance_sha256"],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":

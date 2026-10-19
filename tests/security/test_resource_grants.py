@@ -120,3 +120,29 @@ def test_same_resource_id_is_owned_independently_by_each_tenant() -> None:
             ).decision
             == "BLOCK"
         )
+
+
+def test_identical_versions_do_not_transfer_grants_or_approvals_between_tenants() -> None:
+    catalog = ResourceCatalog(
+        (ResourceRecord("shared", "north", "alice", 7), ResourceRecord("shared", "south", "bob", 7))
+    )
+    gateway = ActionGateway()
+    action = ProposedAction(tool="delete_document", tenant="north", resource="shared")
+    authority = HostAuthority(
+        "alice",
+        "north",
+        "Delete owned file",
+        frozenset({"delete_document"}),
+        (ResourceGrant("alice", "north", "shared", "delete_document", 7, time.time() + 300),),
+    )
+    approval = gateway.approve_v2(action, authority, catalog, reviewer="reviewer")
+    south = action.model_copy(update={"tenant": "south"})
+    assert (
+        gateway.authorize_v2(south, authority, catalog, approval_token=approval).decision == "BLOCK"
+    )
+    catalog.replace(ResourceRecord("shared", "north", "alice", 8))
+    assert (
+        gateway.authorize_v2(action, authority, catalog, approval_token=approval).decision
+        == "BLOCK"
+    )
+    assert catalog.resolve("shared") is None

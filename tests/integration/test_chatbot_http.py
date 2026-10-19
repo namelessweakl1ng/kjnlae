@@ -10,10 +10,12 @@ from kjnlae.guards.resources import HostAuthority, ResourceCatalog, ResourceGran
 class ScanStub:
     def __init__(self, decision="ALLOW"):
         self.decision = decision
+        self.seen = []
 
     def scan(self, text, **context):
         from types import SimpleNamespace
 
+        self.seen.append(text)
         return SimpleNamespace(
             policy_decision=self.decision,
             detection_status="INCOMPLETE" if self.decision != "ALLOW" else "NO_EVIDENCE_FOUND",
@@ -147,7 +149,7 @@ def test_chatbot_uses_tenant_scoped_documents_for_shared_resource_ids():
         ),
     }
     app = create_chatbot_app(
-        ScanStub(),
+        scanner := ScanStub(),
         identities,
         catalog,
         {
@@ -168,3 +170,15 @@ def test_chatbot_uses_tenant_scoped_documents_for_shared_resource_ids():
             assert reply["action_status"] == "EXECUTED"
             assert expected in reply["answer"]
             assert forbidden not in reply["answer"]
+        assert len(scanner.seen) == 2
+        assert set(scanner.seen) == {"Hospital appointment Friday.", "Enterprise handbook Monday."}
+        before = len(scanner.seen)
+        denied = client.post(
+            "/chat",
+            headers={"Authorization": f"Bearer {'h' * 32}"},
+            json={"message": "Summarize", "resource": "unknown"},
+        ).json()
+        assert denied["action_status"] == "DENIED"
+        assert denied["answer"] is None
+        assert denied["detection_decision"] == "NOT_EVALUATED"
+        assert len(scanner.seen) == before

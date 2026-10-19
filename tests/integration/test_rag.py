@@ -55,3 +55,27 @@ def test_rag_withholds_scanner_block_and_incomplete():
         )
         assert result.chunks == ()
         assert result.withheld == ("c1",)
+
+
+def test_rag_shared_resource_names_keep_tenant_text_out_of_scanner_and_results():
+    from time import time
+
+    chunks = (
+        RagChunk("north", "shared", "north", "Quarterly report", "North-only document"),
+        RagChunk("south", "shared", "south", "Quarterly report", "South-only document"),
+    )
+    catalog = ResourceCatalog(
+        (ResourceRecord("shared", "north", "alice", 1), ResourceRecord("shared", "south", "bob", 1))
+    )
+    scanner = StubGuard()
+    gateway = RagGateway(chunks, scanner, catalog)
+    north = TrustedSecurityContext("alice", "north", "Summarize quarterly report")
+    grant = ResourceGrant("alice", "north", "shared", "read_document", 1, time() + 60)
+    result = gateway.retrieve("quarterly report", north, (grant,))
+    assert result.citations == ("north",)
+    assert [chunk.text for chunk in result.chunks] == ["North-only document"]
+    assert scanner.seen == ["North-only document"]
+    denied = gateway.retrieve("quarterly report", north, ())
+    assert denied.chunks == ()
+    assert scanner.seen == ["North-only document"]
+    assert catalog.resolve("shared") is None

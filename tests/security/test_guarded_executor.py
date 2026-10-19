@@ -105,3 +105,23 @@ def test_catalog_change_between_authorization_and_execution_denies() -> None:
     )
     assert result.status == "DENIED"
     assert calls == []
+
+
+def test_shared_id_wrong_tenant_never_reaches_callback() -> None:
+    action, catalog, authority = _case()
+    catalog.replace(ResourceRecord("report-1", "company-b", "bob", 4))
+    calls = []
+    executor = GuardedExecutor(ActionGateway(), catalog)
+    denied = executor.execute(
+        action.model_copy(update={"tenant": "company-b"}),
+        authority,
+        lambda proposed: calls.append(proposed),
+    )
+    assert denied.status == "DENIED"
+    assert calls == []
+    token = executor.gateway.approve_v2(action, authority, catalog, reviewer="reviewer")
+    allowed = executor.execute(
+        action, authority, lambda proposed: calls.append(proposed), approval_token=token
+    )
+    assert allowed.status == "EXECUTED"
+    assert calls == [action]
